@@ -1,0 +1,51 @@
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# SpringBoot 核心配置
+spring:
+  # 应用名称
+  application:
+    name: reimbursement-system
+  # 数据库配置（MySQL8.0专属）
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/fk_reim_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456 # 改成你自己的MySQL密码
+    # 连接池配置
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  # Mapper.xml文件位置
+  mapper-locations: classpath:mapper/*.xml
+  # 实体类包扫描
+  type-aliases-package: com.shengyi.reimbursementsystem.entity
+  configuration:
+    # 开启驼峰命名自动映射
+    map-underscore-to-camel-case: true
+    # 打印SQL日志（开发环境开启，生产关闭）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      # 主键生成策略：UUID
+      id-type: assign_uuid
+      # 逻辑删除配置（可选，训练营可以不用）
+      logic-delete-field: del_flag
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+
+
+# 日志配置
+logging:
+  level:
+    com.shengyi.reimbursement: debug
+    org.springframework.web: info
