@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @Schema(description = "报销单主单保存入参")
@@ -75,4 +76,10 @@ public class ReimSaveDTO {
 
     @Schema(description = "备注信息")
     private String remarks;
+
+    @Schema(description = "补录行程列表")
+    private List<ReimTripDTO> tripList;
+
+    @Schema(description = "费用分摊列表")
+    private List<ReimSplitDTO> splitList;
 }
