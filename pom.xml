@@ -40,7 +40,7 @@
         <!-- MyBatis-Plus 3.5.10（支持分页插件） -->
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>3.5.10</version>
         </dependency>
 
