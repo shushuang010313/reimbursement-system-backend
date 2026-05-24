@@ -4,4 +4,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.shengyi.reimbursementsystem.entity.ReimMain;
 
 public interface IReimMainService extends IService<ReimMain> {
+
+    void updateTotalAmount(String reimId);
 }
