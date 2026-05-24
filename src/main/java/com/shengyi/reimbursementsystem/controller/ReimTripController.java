@@ -2,10 +2,11 @@ package com.shengyi.reimbursementsystem.controller;
 
 import com.shengyi.reimbursementsystem.common.Result;
 import com.shengyi.reimbursementsystem.dto.ReimTripDTO;
+import com.shengyi.reimbursementsystem.service.IReimTripService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,17 +15,19 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "补录行程管理", description = "补录行程操作")
 public class ReimTripController {
 
+    private final IReimTripService reimTripService;
+
     @PostMapping("/REIM_SaveTrip")
     @Operation(summary = "保存补录行程")
-    public Result<?> saveTrip(@Validated @RequestBody ReimTripDTO dto) {
-        // TODO: 交由开发B完成
+    public Result<?> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
+        reimTripService.saveTrip(dto);
         return Result.success();
     }
 
     @PostMapping("/REIM_DeleteTrip")
     @Operation(summary = "删除补录行程")
     public Result<?> deleteTrip(@RequestParam("tripId") String tripId) {
-        // TODO: 交由开发B完成
+        reimTripService.deleteTrip(tripId);
         return Result.success();
     }
 }
