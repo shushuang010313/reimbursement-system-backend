@@ -15,6 +15,9 @@ public class ReimSaveDTO {
     @Schema(description = "报销单ID (更新时必传)")
     private String id;
 
+    @Schema(description = "乐观锁版本号 (更新时必传)")
+    private Integer version;
+
     @NotBlank(message = "报销标题不能为空")
     @Schema(description = "报销标题", requiredMode = Schema.RequiredMode.REQUIRED)
     private String reimbursementTitle;

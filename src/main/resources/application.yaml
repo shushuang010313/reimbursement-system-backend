@@ -22,6 +22,21 @@ spring:
       idle-timeout: 300000
       connection-timeout: 20000
 
+  # Redis 配置
+  data:
+    redis:
+      host: 192.168.40.128
+      port: 6379
+      database: 0
+      password: 123456 # 根据实际Redis密码进行修改
+
+  # RabbitMQ 配置
+  rabbitmq:
+    host: 192.168.40.128
+    port: 5672
+    username: itcast
+    password: 123456
+
 # MyBatis-Plus 配置
 mybatis-plus:
   # Mapper.xml文件位置

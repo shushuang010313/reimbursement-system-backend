@@ -170,6 +170,22 @@ CREATE TABLE fk_reim_split (
                                KEY idx_project_id (project_id) COMMENT '项目分摊查询索引'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='费用分摊表';
 
+-- 2.6 异动日志表
+DROP TABLE IF EXISTS fk_reim_log;
+CREATE TABLE fk_reim_log (
+    id VARCHAR(32) NOT NULL COMMENT '主键ID',
+    reim_id VARCHAR(32) NOT NULL COMMENT '报销单ID',
+    action VARCHAR(100) NOT NULL COMMENT '操作类型',
+    old_status INT(4) NULL DEFAULT NULL COMMENT '原状态',
+    new_status INT(4) NULL DEFAULT NULL COMMENT '新状态',
+    details VARCHAR(1000) NULL DEFAULT NULL COMMENT '详情或脱敏数据',
+    operator_id VARCHAR(32) NULL DEFAULT NULL COMMENT '操作人ID',
+    operator_name VARCHAR(50) NULL DEFAULT NULL COMMENT '操作人姓名',
+    creation_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (id),
+    KEY idx_reim_id (reim_id) COMMENT '按报销单查询日志索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报销单异动日志表';
+
 -- =============================================
 -- 3. 插入测试数据（事务保证原子性，要么全部成功要么全部回滚）
 -- =============================================
