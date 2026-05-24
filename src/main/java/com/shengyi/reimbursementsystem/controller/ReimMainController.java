@@ -21,6 +21,11 @@ public class ReimMainController {
 
     private final IReimMainService reimMainService;
 
+    /**
+     * 查询报销单分页列表
+     * @param dto 分页查询条件
+     * @return 分页结果
+     */
     @PostMapping("/REIM_QueryPageList")
     @Operation(summary = "查询报销单分页列表")
     public Result<IPage<ReimMainVO>> queryPageList(@Validated @RequestBody ReimPageQueryDTO dto) {
@@ -28,6 +33,11 @@ public class ReimMainController {
         return Result.success(pageResult);
     }
 
+    /**
+     * 保存报销单(含级联保存)
+     * @param dto 报销单主单及明细数据
+     * @return 统一返回结果
+     */
     @PostMapping("/REIM_Save")
     @Operation(summary = "保存报销单(含级联保存)")
     public Result<?> saveReim(@Validated @RequestBody ReimSaveDTO dto) {
@@ -35,6 +45,11 @@ public class ReimMainController {
         return Result.success();
     }
 
+    /**
+     * 提交报销单
+     * @param dto 提交所需数据（含乐观锁版本号）
+     * @return 统一返回结果
+     */
     @PostMapping("/REIM_Submit")
     @Operation(summary = "提交报销单")
     public Result<?> submitReim(@Validated @RequestBody ReimSubmitDTO dto) {

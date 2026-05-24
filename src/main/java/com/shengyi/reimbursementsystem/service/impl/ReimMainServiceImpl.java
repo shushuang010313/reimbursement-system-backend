@@ -50,7 +50,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
         Page<ReimMainVO> page = new Page<>(dto.getCurrent(), dto.getSize());
         ReimMainVO req = new ReimMainVO();
         BeanUtils.copyProperties(dto, req);
-        // Map DTO to VO fields for XML query
+        // 将 DTO 字段映射到 VO 字段，用于 XML 查询
         req.setReimbursementTitle(dto.getReimTitle());
         req.setReimCompanyId(dto.getCompanyId());
         req.setReimDepartmentId(dto.getDepartmentId());
@@ -66,7 +66,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
 
         boolean isNew = !StringUtils.hasText(dto.getId());
         if (isNew) {
-            // Generate reimNo: REIM + yyyyMMdd + sequence
+            // 生成报销单号：REIM + 年月日 + 序列号
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String redisKey = "reim:seq:" + dateStr;
             Long seq = stringRedisTemplate.opsForValue().increment(redisKey);
@@ -77,12 +77,12 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             main.setReimStatus(0); // 0-草稿
             this.save(main);
         } else {
-            // Check version for optimistic locking
+            // 检查乐观锁版本号
             ReimMain oldMain = this.getById(dto.getId());
             if (oldMain == null) {
                 throw new BusinessException(ErrorCodeEnum.REIM_001);
             }
-            // Cannot modify if not in draft
+            // 非草稿状态不可修改
             if (oldMain.getReimStatus() != 0) {
                 throw new BusinessException(ErrorCodeEnum.REIM_002);
             }
@@ -105,14 +105,14 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被其他人修改，请刷新后重试");
             }
             
-            // Delete old splits and trips
+            // 逻辑删除旧的分摊明细和行程明细
             reimSplitService.update(new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ReimSplit>().eq("reim_id", dto.getId()).set("del_flag", 1));
             reimTripService.update(new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ReimTrip>().eq("reim_id", dto.getId()).set("del_flag", 1));
         }
 
         String reimId = main.getId();
 
-        // Save Trips
+        // 批量保存行程明细
         if (dto.getTripList() != null && !dto.getTripList().isEmpty()) {
             List<ReimTrip> tripList = new ArrayList<>();
             for (ReimTripDTO tripDTO : dto.getTripList()) {
@@ -124,13 +124,8 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             reimTripService.saveBatch(tripList);
         }
 
-        // Save Splits
+        // 批量保存分摊明细
         if (dto.getSplitList() != null && !dto.getSplitList().isEmpty()) {
-            // Perform split calculation logic if needed, or simply save
-            // The split logic calculateSplitRatio is called from another endpoint typically, or we should do it here?
-            // "前端修改第二行及以后的比例时，后端进行双重校验，计算第一行的比例" -> this implies a separate interface or we calculate here.
-            // Let's call the calculation method here just in case, or just save them.
-            // I'll leave the calculation for the specific split controller as described in the plan.
             List<ReimSplit> splitList = new ArrayList<>();
             for (ReimSplitDTO splitDTO : dto.getSplitList()) {
                 ReimSplit split = new ReimSplit();
@@ -160,43 +155,38 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
                 throw new BusinessException(ErrorCodeEnum.REIM_001);
             }
             
-            // Check version
+            // 校验乐观锁版本号是否一致
             if (!main.getVersion().equals(dto.getVersion())) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被修改，请刷新后重试");
             }
             
-            // Cannot submit if not in draft
+            // 非草稿状态不能提交
             if (main.getReimStatus() != 0) {
                 throw new BusinessException(ErrorCodeEnum.REIM_002);
             }
 
-            // check legality
+            // 校验合法性（必须有行程明细，且补助总计不能为空）
             long tripCount = reimTripService.count(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<ReimTrip>().eq("reim_id", reimId));
             if (tripCount == 0 || main.getSubsidyTotal() == null) {
                 throw new BusinessException(ErrorCodeEnum.REIM_005);
             }
 
-            // update status
+            // 更新状态为已完成
             ReimMain updateMain = new ReimMain();
             updateMain.setId(reimId);
             updateMain.setVersion(dto.getVersion());
-            updateMain.setReimStatus(1); // 1-已完成 (or submitting/pending approval depending on business, plan says '1 (已完成)')
+            updateMain.setReimStatus(1); // 1-已完成
             
             boolean updated = this.updateById(updateMain);
             if (!updated) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被修改，提交失败");
             }
 
-            // Send MQ message
+            // 发送 MQ 消息进行异步处理
             try {
                 rabbitTemplate.convertAndSend("reim.submit.topic", "", reimId);
             } catch (Exception e) {
-                // If MQ fails, maybe it will be compensated by job
-                // Or we update a sub-status to "待推送" (To be pushed), wait the plan says "扫描表中 status=待推送".
-                // So let's add a push_status if it exists, wait ReimMain entity doesn't have pushStatus, just reimStatus.
-                // The plan says "扫描表中 status=待推送 且 update_time < NOW() - 5分钟". But ReimMain only has reimStatus: 0-草稿 1-已完成 2-已作废.
-                // It might mean we assume it's pending push if status is 1 and it's not processed yet. 
-                // We'll leave the job to scan reimStatus = 1.
+                // 发送失败时由定时任务补偿处理
             }
             
         } catch (InterruptedException e) {

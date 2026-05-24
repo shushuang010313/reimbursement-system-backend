@@ -39,7 +39,7 @@ public class ReimLogAspect {
             oldMain = reimMainService.getById(reimId);
         }
 
-        // Proceed method
+        // 执行目标方法
         Object result = pjp.proceed();
 
         if (reimId != null && oldMain != null) {
