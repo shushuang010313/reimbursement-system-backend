@@ -14,10 +14,6 @@ public class ReimTripDTO {
     @Schema(description = "行程ID (更新时必传)")
     private String id;
 
-    @NotBlank(message = "报销单ID不能为空")
-    @Schema(description = "报销单ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String reimId;
-
     @NotBlank(message = "出行人ID不能为空")
     @Schema(description = "出行人ID", requiredMode = Schema.RequiredMode.REQUIRED)
     private String travelerId;
