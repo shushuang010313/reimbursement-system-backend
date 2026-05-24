@@ -36,10 +36,10 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void generateSubsidy(String tripId, String reimId) {
+    public String generateSubsidy(String tripId, String reimId) {
         ReimTrip trip = reimTripMapper.selectById(tripId);
         if (trip == null) {
-            return;
+            return null;
         }
 
         ReimSubsidy subsidy = new ReimSubsidy();
@@ -70,6 +70,7 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
         log.info("生成补助信息成功: subsidyId={}", subsidy.getId());
 
         reimCalendarService.generateCalendar(tripId, reimId, subsidy.getId());
+        return subsidy.getId();
     }
 
     @Override

@@ -46,9 +46,15 @@ public class ReimCalendarController {
                 return Result.error(ErrorCodeEnum.PARAM_ERROR);
             }
             
+            String subsidyId = (String) params.get("subsidyId");
+            
             // 将 LinkedHashMap 转换为 ReimCalendarDTO
             List<ReimCalendarDTO> dtoList = calendarListRaw.stream()
-                .map(map -> objectMapper.convertValue(map, ReimCalendarDTO.class))
+                .map(map -> {
+                    ReimCalendarDTO dto = objectMapper.convertValue(map, ReimCalendarDTO.class);
+                    dto.setSubsidyId(subsidyId);
+                    return dto;
+                })
                 .collect(Collectors.toList());
             
             reimCalendarService.updateCalendarStatus(dtoList);

@@ -7,7 +7,7 @@ import com.shengyi.reimbursementsystem.entity.ReimSubsidy;
 import java.util.List;
 
 public interface IReimSubsidyService extends IService<ReimSubsidy> {
-    void generateSubsidy(String tripId, String reimId);
+    String generateSubsidy(String tripId, String reimId);
     
     List<ReimSubsidy> getSubsidyByReimId(String reimId);
     

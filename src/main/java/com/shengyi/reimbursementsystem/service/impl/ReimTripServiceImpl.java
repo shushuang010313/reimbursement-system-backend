@@ -38,7 +38,7 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void saveTrip(ReimTripDTO tripDTO) {
+    public java.util.Map<String, String> saveTrip(ReimTripDTO tripDTO) {
         validateTripTime(tripDTO);
 
         ReimTrip reimTrip = new ReimTrip();
@@ -55,7 +55,11 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
             log.info("保存行程成功: tripId={}", reimTrip.getId());
         }
 
-        getReimSubsidyService().generateSubsidy(reimTrip.getId(), reimTrip.getReimId());
+        String subsidyId = getReimSubsidyService().generateSubsidy(reimTrip.getId(), reimTrip.getReimId());
+        java.util.Map<String, String> result = new java.util.HashMap<>();
+        result.put("tripId", reimTrip.getId());
+        result.put("subsidyId", subsidyId);
+        return result;
     }
 
     @Override

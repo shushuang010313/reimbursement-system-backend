@@ -40,9 +40,11 @@ public class ReimMainController {
      */
     @PostMapping("/REIM_Save")
     @Operation(summary = "保存报销单(含级联保存)")
-    public Result<?> saveReim(@Validated @RequestBody ReimSaveDTO dto) {
-        reimMainService.saveReimMain(dto);
-        return Result.success();
+    public Result<java.util.Map<String, String>> saveReim(@Validated @RequestBody ReimSaveDTO dto) {
+        String reimId = reimMainService.saveReimMain(dto);
+        java.util.Map<String, String> data = new java.util.HashMap<>();
+        data.put("id", reimId);
+        return Result.success(data);
     }
 
     /**
@@ -54,6 +56,41 @@ public class ReimMainController {
     @Operation(summary = "提交报销单")
     public Result<?> submitReim(@Validated @RequestBody ReimSubmitDTO dto) {
         reimMainService.submitReim(dto);
+        return Result.success();
+    }
+
+    /**
+     * 查询报销单详情
+     * @param id 报销单ID
+     * @return 统一返回结果
+     */
+    @GetMapping("/REIM_GetDetail")
+    @Operation(summary = "查询报销单详情")
+    public Result<com.shengyi.reimbursementsystem.entity.ReimMain> getDetail(@RequestParam("id") String id) {
+        com.shengyi.reimbursementsystem.entity.ReimMain main = reimMainService.getById(id);
+        return Result.success(main);
+    }
+
+    /**
+     * 更新报销单状态
+     * @param params 包含id, status, remark
+     * @return 统一返回结果
+     */
+    @PostMapping("/REIM_UpdateStatus")
+    @Operation(summary = "更新报销单状态")
+    public Result<?> updateStatus(@RequestBody java.util.Map<String, Object> params) {
+        String id = (String) params.get("id");
+        Integer status = (Integer) params.get("status");
+        
+        if (id == null || status == null) {
+            return Result.error(com.shengyi.reimbursementsystem.common.ErrorCodeEnum.PARAM_ERROR);
+        }
+        
+        com.shengyi.reimbursementsystem.entity.ReimMain updateMain = new com.shengyi.reimbursementsystem.entity.ReimMain();
+        updateMain.setId(id);
+        updateMain.setReimStatus(status);
+        reimMainService.updateById(updateMain);
+        
         return Result.success();
     }
 }

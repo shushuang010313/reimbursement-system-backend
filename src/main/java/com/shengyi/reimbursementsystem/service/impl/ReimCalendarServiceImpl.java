@@ -171,26 +171,67 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         }
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shengyi.reimbursementsystem.mapper.ReimSubsidyMapper reimSubsidyMapper;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.shengyi.reimbursementsystem.mapper.ReimMainMapper reimMainMapper;
+
     private void updateSubsidyAndMainAmount(String subsidyId) {
         LambdaQueryWrapper<ReimCalendar> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(ReimCalendar::getSubsidyId, subsidyId);
         List<ReimCalendar> calendarList = list(queryWrapper);
 
+        if (calendarList.isEmpty()) {
+            return;
+        }
+        
+        String reimId = calendarList.get(0).getReimId();
+
         BigDecimal totalMealAmount = calendarList.stream()
             .map(ReimCalendar::getMealAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
         
         BigDecimal totalTransportAmount = calendarList.stream()
             .map(ReimCalendar::getTransportAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
         
         BigDecimal totalPhoneAmount = calendarList.stream()
             .map(ReimCalendar::getPhoneAmount)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
 
         BigDecimal totalSubsidy = totalMealAmount.add(totalTransportAmount).add(totalPhoneAmount)
             .setScale(2, RoundingMode.HALF_UP);
 
-        log.info("计算补助总金额成功: subsidyId={}, totalAmount={}", subsidyId, totalSubsidy);
+        // 更新补助子表
+        com.shengyi.reimbursementsystem.entity.ReimSubsidy subsidy = new com.shengyi.reimbursementsystem.entity.ReimSubsidy();
+        subsidy.setId(subsidyId);
+        subsidy.setMealSubsidy(totalMealAmount);
+        subsidy.setTransportSubsidy(totalTransportAmount);
+        subsidy.setPhoneSubsidy(totalPhoneAmount);
+        subsidy.setSubsidyAmount(totalSubsidy);
+        reimSubsidyMapper.updateById(subsidy);
+
+        // 重新汇总该报销单下的所有补助
+        LambdaQueryWrapper<com.shengyi.reimbursementsystem.entity.ReimSubsidy> subQuery = new LambdaQueryWrapper<>();
+        subQuery.eq(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getReimId, reimId)
+                .eq(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getDelFlag, 0);
+        List<com.shengyi.reimbursementsystem.entity.ReimSubsidy> allSubsidies = reimSubsidyMapper.selectList(subQuery);
+
+        BigDecimal mainMeal = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getMealSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainTransport = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getTransportSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainPhone = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getPhoneSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainTotal = mainMeal.add(mainTransport).add(mainPhone).setScale(2, RoundingMode.HALF_UP);
+
+        // 更新主表
+        com.shengyi.reimbursementsystem.entity.ReimMain main = new com.shengyi.reimbursementsystem.entity.ReimMain();
+        main.setId(reimId);
+        main.setMealAllowance(mainMeal);
+        main.setTransportationAllowance(mainTransport);
+        main.setPhoneAllowance(mainPhone);
+        main.setSubsidyTotal(mainTotal);
+        reimMainMapper.updateById(main);
+
+        log.info("计算补助总金额并更新主单成功: reimId={}, totalAmount={}", reimId, mainTotal);
     }
 }

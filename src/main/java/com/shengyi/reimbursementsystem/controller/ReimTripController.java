@@ -19,9 +19,9 @@ public class ReimTripController {
 
     @PostMapping("/REIM_SaveTrip")
     @Operation(summary = "保存补录行程")
-    public Result<?> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
-        reimTripService.saveTrip(dto);
-        return Result.success();
+    public Result<java.util.Map<String, String>> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
+        java.util.Map<String, String> data = reimTripService.saveTrip(dto);
+        return Result.success(data);
     }
 
     @PostMapping("/REIM_DeleteTrip")

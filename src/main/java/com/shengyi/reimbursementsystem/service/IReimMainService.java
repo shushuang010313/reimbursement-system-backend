@@ -21,7 +21,7 @@ public interface IReimMainService extends IService<ReimMain> {
      * 保存报销单(包含主表、行程明细、分摊明细)
      * @param dto 报销单数据
      */
-    void saveReimMain(com.shengyi.reimbursementsystem.dto.ReimSaveDTO dto);
+    String saveReimMain(com.shengyi.reimbursementsystem.dto.ReimSaveDTO dto);
     
     /**
      * 提交报销单

@@ -60,7 +60,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void saveReimMain(ReimSaveDTO dto) {
+    public String saveReimMain(ReimSaveDTO dto) {
         ReimMain main = new ReimMain();
         BeanUtils.copyProperties(dto, main);
 
@@ -135,6 +135,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             }
             reimSplitService.saveBatch(splitList);
         }
+        return reimId;
     }
 
     @Override
