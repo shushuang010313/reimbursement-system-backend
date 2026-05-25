@@ -1,4 +1,4 @@
-package com.shengyi.reimbursementsystem.component;
+package com.shengyi.reimbursementsystem.component.strategy;
 
 import java.math.BigDecimal;
 import java.util.Map;
