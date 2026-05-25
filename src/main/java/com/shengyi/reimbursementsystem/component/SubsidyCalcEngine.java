@@ -31,7 +31,12 @@ public class SubsidyCalcEngine {
         strategyFactory.init();
     }
 
-    public String matchCityLevel(String cityId) {
+    /**
+     * 匹配城市等级。
+     * @param cityId 城市ID
+     * @return 城市等级
+     */
+       public String matchCityLevel(String cityId) {
         if (cityId == null || cityId.isEmpty()) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }
@@ -57,6 +62,11 @@ public class SubsidyCalcEngine {
         return cityLevel;
     }
 
+    /**
+     * 从城市信息中提取城市等级。
+     * @param cityInfo 城市信息字符串
+     * @return 城市等级
+     */
     private String extractCityLevel(String cityInfo) {
         if (cityInfo.contains("\"csfllx\":1")) {
             return "1";
@@ -66,6 +76,12 @@ public class SubsidyCalcEngine {
         return "3";
     }
 
+    /**
+     * 计算补贴标准。
+     * @param cityLevel 城市等级
+     * @param days 补贴天数
+     * @return 计算结果
+     */
     public Map<String, BigDecimal> calculateStandardAmount(String cityLevel, int days) {
         if (cityLevel == null || days <= 0) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
@@ -75,6 +91,12 @@ public class SubsidyCalcEngine {
         return strategy.calculateAllStandards(days);
     }
 
+    /**
+     * 计算每日补贴标准。
+     * @param cityLevel 城市等级
+     * @param subsidyType 补贴类型
+     * @return 计算结果
+     */
     public BigDecimal calculateDayStandardAmount(String cityLevel, String subsidyType) {
         if (cityLevel == null || subsidyType == null) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
