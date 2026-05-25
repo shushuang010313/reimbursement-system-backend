@@ -24,6 +24,11 @@ public class ReimCalendarController {
     private final IReimCalendarService reimCalendarService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 获取补助日历
+     * @param params 包助日历参数
+     * @return
+     */
     @PostMapping("/REIM_GetCalendar")
     @Operation(summary = "获取补助日历")
     public Result<List<ReimCalendar>> getCalendar(@RequestBody Map<String, Object> params) {
@@ -35,6 +40,11 @@ public class ReimCalendarController {
         return Result.success(calendarList);
     }
 
+    /**
+     * 保存补助日历状态
+     * @param params 包助日历状态参数
+     * @return
+     */
     @PostMapping("/REIM_SaveSubsidy")
     @Operation(summary = "保存补助日历状态")
     public Result<?> saveSubsidy(@RequestBody Map<String, Object> params) {

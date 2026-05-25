@@ -17,6 +17,11 @@ public class ReimTripController {
 
     private final IReimTripService reimTripService;
 
+    /**
+     * 保存补录行程
+     * @param dto 补录行程DTO
+     * @return
+     */
     @PostMapping("/REIM_SaveTrip")
     @Operation(summary = "保存补录行程")
     public Result<java.util.Map<String, String>> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
@@ -24,6 +29,11 @@ public class ReimTripController {
         return Result.success(data);
     }
 
+    /**
+     * 删除补录行程
+     * @param tripId 补录行程ID
+     * @return
+     */
     @PostMapping("/REIM_DeleteTrip")
     @Operation(summary = "删除补录行程")
     public Result<?> deleteTrip(@RequestParam("tripId") String tripId) {

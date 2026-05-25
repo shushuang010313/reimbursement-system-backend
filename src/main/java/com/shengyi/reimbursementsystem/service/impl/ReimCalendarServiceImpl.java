@@ -5,12 +5,15 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shengyi.reimbursementsystem.component.SubsidyCalcEngine;
 import com.shengyi.reimbursementsystem.dto.ReimCalendarDTO;
 import com.shengyi.reimbursementsystem.entity.ReimCalendar;
+import com.shengyi.reimbursementsystem.entity.ReimMain;
+import com.shengyi.reimbursementsystem.entity.ReimSubsidy;
 import com.shengyi.reimbursementsystem.entity.ReimTrip;
 import com.shengyi.reimbursementsystem.mapper.ReimCalendarMapper;
 import com.shengyi.reimbursementsystem.mapper.ReimTripMapper;
 import com.shengyi.reimbursementsystem.service.IReimCalendarService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +44,12 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         this.subsidyCalcEngine = subsidyCalcEngine;
     }
 
+    /**
+     * 生成补助日历
+     * @param tripId 补录行程ID
+     * @param reimId 补录行程ID
+     * @param subsidyId 补助ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void generateCalendar(String tripId, String reimId, String subsidyId) {
@@ -70,6 +79,14 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         log.info("批量生成补助日历成功: tripId={}, count={}", tripId, calendarList.size());
     }
 
+    /**
+     * 创建补助日历记录
+     * @param date 日期
+     * @param trip 补录行程
+     * @param reimId 补录行程ID
+     * @param subsidyId 补助ID
+     * @return 补助日历记录
+     */
     private ReimCalendar createCalendarRecord(LocalDate date, ReimTrip trip, String reimId, String subsidyId) {
         ReimCalendar calendar = new ReimCalendar();
         calendar.setReimId(reimId);
@@ -103,6 +120,11 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         return calendar;
     }
 
+    /**
+     * 获取补助日历
+     * @param subsidyId 补助ID
+     * @return 补助日历列表
+     */
     @Override
     public List<ReimCalendar> getCalendarBySubsidyId(String subsidyId) {
         return lambdaQuery()
@@ -111,6 +133,10 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
             .list();
     }
 
+    /**
+     * 更新补助日历状态
+     * @param dtoList 补助日历状态DTO列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateCalendarStatus(List<ReimCalendarDTO> dtoList) {
@@ -171,10 +197,10 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         }
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private com.shengyi.reimbursementsystem.mapper.ReimSubsidyMapper reimSubsidyMapper;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private com.shengyi.reimbursementsystem.mapper.ReimMainMapper reimMainMapper;
 
     private void updateSubsidyAndMainAmount(String subsidyId) {
@@ -204,7 +230,7 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
             .setScale(2, RoundingMode.HALF_UP);
 
         // 更新补助子表
-        com.shengyi.reimbursementsystem.entity.ReimSubsidy subsidy = new com.shengyi.reimbursementsystem.entity.ReimSubsidy();
+        ReimSubsidy subsidy = new ReimSubsidy();
         subsidy.setId(subsidyId);
         subsidy.setMealSubsidy(totalMealAmount);
         subsidy.setTransportSubsidy(totalTransportAmount);
@@ -213,18 +239,18 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         reimSubsidyMapper.updateById(subsidy);
 
         // 重新汇总该报销单下的所有补助
-        LambdaQueryWrapper<com.shengyi.reimbursementsystem.entity.ReimSubsidy> subQuery = new LambdaQueryWrapper<>();
-        subQuery.eq(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getReimId, reimId)
-                .eq(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getDelFlag, 0);
-        List<com.shengyi.reimbursementsystem.entity.ReimSubsidy> allSubsidies = reimSubsidyMapper.selectList(subQuery);
+        LambdaQueryWrapper<ReimSubsidy> subQuery = new LambdaQueryWrapper<>();
+        subQuery.eq(ReimSubsidy::getReimId, reimId)
+                .eq(ReimSubsidy::getDelFlag, 0);
+        List<ReimSubsidy> allSubsidies = reimSubsidyMapper.selectList(subQuery);
 
-        BigDecimal mainMeal = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getMealSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
-        BigDecimal mainTransport = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getTransportSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
-        BigDecimal mainPhone = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getPhoneSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainMeal = allSubsidies.stream().map(ReimSubsidy::getMealSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainTransport = allSubsidies.stream().map(ReimSubsidy::getTransportSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainPhone = allSubsidies.stream().map(ReimSubsidy::getPhoneSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
         BigDecimal mainTotal = mainMeal.add(mainTransport).add(mainPhone).setScale(2, RoundingMode.HALF_UP);
 
         // 更新主表
-        com.shengyi.reimbursementsystem.entity.ReimMain main = new com.shengyi.reimbursementsystem.entity.ReimMain();
+        ReimMain main = new ReimMain();
         main.setId(reimId);
         main.setMealAllowance(mainMeal);
         main.setTransportationAllowance(mainTransport);
