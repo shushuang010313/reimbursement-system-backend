@@ -1,15 +1,15 @@
 package com.shengyi.reimbursementsystem.component;
 
 import com.shengyi.reimbursementsystem.common.ErrorCodeEnum;
+import com.shengyi.reimbursementsystem.component.strategy.SubsidyCalcStrategyFactory;
 import com.shengyi.reimbursementsystem.exception.BusinessException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -19,9 +19,16 @@ import java.util.concurrent.TimeUnit;
 public class SubsidyCalcEngine {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final SubsidyCalcStrategyFactory strategyFactory;
+    
     private static final String CITY_LIST_KEY = "fk:reim:city:list";
     private static final String CITY_CACHE_PREFIX = "fk:reim:city:";
     private static final long CACHE_EXPIRE_HOURS = 24;
+
+    @PostConstruct
+    public void init() {
+        strategyFactory.init();
+    }
 
     public String matchCityLevel(String cityId) {
         if (cityId == null || cityId.isEmpty()) {
@@ -63,30 +70,8 @@ public class SubsidyCalcEngine {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }
 
-        BigDecimal mealStandard;
-        BigDecimal transportStandard = new BigDecimal("40");
-        BigDecimal phoneStandard = new BigDecimal("40");
-
-        switch (cityLevel) {
-            case "1":
-                mealStandard = new BigDecimal("100");
-                break;
-            case "2":
-                mealStandard = new BigDecimal("80");
-                break;
-            case "3":
-                mealStandard = new BigDecimal("50");
-                break;
-            default:
-                mealStandard = new BigDecimal("50");
-        }
-
-        Map<String, BigDecimal> result = new HashMap<>();
-        result.put("meal", mealStandard.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP));
-        result.put("transport", transportStandard.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP));
-        result.put("phone", phoneStandard.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP));
-        
-        return result;
+        SubsidyCalcStrategy strategy = strategyFactory.getStrategy(cityLevel);
+        return strategy.calculateAllStandards(days);
     }
 
     public BigDecimal calculateDayStandardAmount(String cityLevel, String subsidyType) {
@@ -94,19 +79,7 @@ public class SubsidyCalcEngine {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }
 
-        switch (subsidyType) {
-            case "meal":
-                switch (cityLevel) {
-                    case "1": return new BigDecimal("100");
-                    case "2": return new BigDecimal("80");
-                    case "3": return new BigDecimal("50");
-                    default: return new BigDecimal("50");
-                }
-            case "transport":
-            case "phone":
-                return new BigDecimal("40");
-            default:
-                return BigDecimal.ZERO;
-        }
+        SubsidyCalcStrategy strategy = strategyFactory.getStrategy(cityLevel);
+        return strategy.calculateDayStandard(subsidyType);
     }
 }
