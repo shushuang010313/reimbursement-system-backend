@@ -1,6 +1,7 @@
 package com.shengyi.reimbursementsystem.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.shengyi.reimbursementsystem.annotation.Idempotent;
 import com.shengyi.reimbursementsystem.common.ErrorCodeEnum;
 import com.shengyi.reimbursementsystem.common.Result;
 import com.shengyi.reimbursementsystem.dto.ReimCalendarDTO;
@@ -47,6 +48,7 @@ public class ReimCalendarController {
      */
     @PostMapping("/REIM_SaveSubsidy")
     @Operation(summary = "保存补助日历状态")
+    @Idempotent(timeout = 5, message = "正在保存补助日历，请勿频繁点击")
     public Result<?> saveSubsidy(@RequestBody Map<String, Object> params) {
         try {
             @SuppressWarnings("unchecked")

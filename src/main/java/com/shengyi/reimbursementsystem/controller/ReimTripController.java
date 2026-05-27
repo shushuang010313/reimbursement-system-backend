@@ -1,5 +1,6 @@
 package com.shengyi.reimbursementsystem.controller;
 
+import com.shengyi.reimbursementsystem.annotation.Idempotent;
 import com.shengyi.reimbursementsystem.common.Result;
 import com.shengyi.reimbursementsystem.dto.ReimTripDTO;
 import com.shengyi.reimbursementsystem.service.IReimTripService;
@@ -24,6 +25,7 @@ public class ReimTripController {
      */
     @PostMapping("/REIM_SaveTrip")
     @Operation(summary = "保存补录行程")
+    @Idempotent(timeout = 5, message = "正在保存行程，请勿频繁点击")
     public Result<java.util.Map<String, String>> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
         java.util.Map<String, String> data = reimTripService.saveTrip(dto);
         return Result.success(data);
@@ -36,6 +38,7 @@ public class ReimTripController {
      */
     @PostMapping("/REIM_DeleteTrip")
     @Operation(summary = "删除补录行程")
+    @Idempotent(timeout = 3, message = "正在删除行程，请勿重复操作")
     public Result<?> deleteTrip(@RequestParam("tripId") String tripId) {
         reimTripService.deleteTrip(tripId);
         return Result.success();
