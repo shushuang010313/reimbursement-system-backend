@@ -1,0 +1,737 @@
+###############################################################################
+#  差旅报销系统 - 五大亮点功能完整测试脚本 (IntelliJ IDEA HTTP Client)
+#  兼容: IntelliJ IDEA Ultimate / Community (需装 HTTP Client 插件)
+#  全局变量说明:
+#    @fccApi   = 核心业务接口基地址
+#    @exportApi= 导出接口基地址
+#    @taskId   = 异步导出任务ID (运行时自动捕获)
+#    @reimId   = 保存后返回的报销单ID (需手动填写或自动捕获)
+###############################################################################
+
+# ========================== 环境变量 ==========================
+@host=localhost:8080
+@baseUrl=http://{{host}}/api
+@fccApi={{baseUrl}}/fccapi
+@exportApi={{baseUrl}}/reim/export
+
+
+###############################################################################
+#  前置准备: Swagger 文档地址 (浏览器打开)
+###############################################################################
+
+###
+# 1.0 检查 Swagger UI 是否可访问
+GET {{baseUrl}}/swagger-ui/index.html
+
+
+###############################################################################
+#  第一章: 🌟 亮点五 — 接口防抖与幂等性测试 (@Idempotent + Redis Lua)
+#
+#  代码位置:
+#    - annotation/Idempotent.java          (幂等注解)
+#    - interceptor/IdempotentAspect.java   (AOP切面, Lua脚本)
+#
+#  验证目标:
+#    1. 相同参数在5秒内重复请求，第二次应被拦截 (code != 200)
+#    2. 不同参数请求不受影响
+#    3. 用户唯一性基于 user-id header + URI + 参数MD5
+#
+#  验证方法:
+#    在 IDEA 中快速连续点击两次 (间隔 < 5s) 下面的请求，
+#    第一次返回 code=200 并携带新报销单ID，
+#    第二次返回 code=500, message="正在保存报销单，请勿频繁点击"
+###############################################################################
+
+###
+# 2.1 【亮点五核心测试】幂等性验证 — 快速连续点击两次!
+# 第一次: 200 成功，返回新的报销单ID
+# 第二次: 500 被拦截，提示 "正在保存报销单，请勿频繁点击"
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-001
+
+{
+  "reimbursementTitle": "幂等性测试-10月份杭州出差报销",
+  "businessTripReason": "拜访客户演示系统架构",
+  "reimburserId": "EMP001",
+  "reimburserNo": "1001",
+  "reimburserName": "张三",
+  "reimCompanyId": "COMP01",
+  "reimCompanyNo": "C001",
+  "reimCompanyName": "字节跳动科技有限公司",
+  "subsidyTotal": 1200.50,
+  "payeeIdCard": "110105199001011234",
+  "payeeBankAccount": "6222021001112222333",
+  "tripList": [
+    {
+      "travelerId": "EMP001",
+      "travelerNo": "1001",
+      "travelerName": "张三",
+      "departureCityId": "city027",
+      "departureCityName": "武汉",
+      "arriveCityId": "city010",
+      "arriveCityName": "杭州",
+      "arriveCityLevel": "1",
+      "departureDate": "2025-10-15",
+      "arriveDate": "2025-10-18",
+      "tripDays": 4,
+      "tripDesc": "武汉到杭州出差"
+    }
+  ]
+}
+
+> {%
+    if (response.body.code == 200) {
+        client.global.set("reimId", response.body.data.id);
+        client.log(">>> 报销单ID已捕获: " + response.body.data.id);
+    } else {
+        client.log("!!! 幂等性拦截触发: " + response.body.message);
+    }
+%}
+
+
+###
+# 2.2 【亮点五扩展】不同参数的请求不受影响
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-001
+
+{
+  "reimbursementTitle": "幂等性测试-不同的标题所以可以通过",
+  "businessTripReason": "另一个测试事由",
+  "reimburserId": "EMP001",
+  "reimburserNo": "1001",
+  "reimburserName": "张三",
+  "reimCompanyId": "COMP01",
+  "subsidyTotal": 500.00,
+  "payeeIdCard": "110105199001011234",
+  "payeeBankAccount": "6222021001112222333",
+  "tripList": [
+    {
+      "travelerId": "EMP001",
+      "travelerNo": "1001",
+      "travelerName": "张三",
+      "departureCityId": "city010",
+      "departureCityName": "北京",
+      "arriveCityId": "city027",
+      "arriveCityName": "武汉",
+      "arriveCityLevel": "2",
+      "departureDate": "2025-10-20",
+      "arriveDate": "2025-10-22",
+      "tripDays": 3,
+      "tripDesc": "北京回武汉"
+    }
+  ]
+}
+
+
+###
+# 2.3 【亮点五扩展】提交接口的幂等性验证 — 同样快速连点两次
+# 第一次成功, 第二次被拦截
+POST {{fccApi}}/REIM_Submit
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{reimId}}",
+  "version": 0
+}
+
+
+###############################################################################
+#  第二章: 🌟 亮点一 — 数据加密与脱敏 (@JsonEncrypt + AES + Jackson)
+#
+#  代码位置:
+#    - annotation/JsonEncrypt.java          (加密脱敏注解)
+#    - annotation/DesensitizeType.java      (脱敏类型枚举)
+#    - config/JsonEncryptSerializer.java    (Jackson序列化器, 动态脱敏)
+#    - utils/AESUtils.java                  (AES加解密工具)
+#    - interceptor/CryptoInterceptor.java   (MyBatis插件, 透明加解密)
+#
+#  验证目标:
+#    1. 数据库中存储的是 AES 密文 (不能直接看到身份证/银行卡明文)
+#    2. 通过 API 获取详情时，返回的 JSON 自动脱敏:
+#       - 身份证: 110105********1234 (保留前6后4)
+#       - 银行卡: 6222****3333       (保留前4后4)
+#       - 手机号: 138****1234        (保留前3后4)
+#    3. Java 内存中是明文 (MyBatis 拦截器透明加解密)
+#
+#  前置条件: 先执行 2.1 或已有报销单ID
+###############################################################################
+
+###
+# 3.1 【亮点一核心测试】查询报销单详情 — 观察 JSON 脱敏效果
+# 预期响应中:
+#   payeeIdCard      -> "110105********1234"   (不是 "110105199001011234"!)
+#   payeeBankAccount  -> "6222****3333"         (不是完整卡号!)
+GET {{fccApi}}/REIM_GetDetail?id={{reimId}}
+user-id: user-001
+
+
+###
+# 3.2 【亮点一验证】数据库直查验证密文存储
+# 请在 IDEA 的 Database 工具窗口执行以下 SQL:
+#
+# SELECT id, payee_id_card, payee_bank_account
+# FROM fk_reim_db.fk_reim_main
+# WHERE id = '<上面返回的报销单ID>';
+#
+# 预期: payee_id_card 和 payee_bank_account 是 Base64 密文 (如 "xYz9K...==")
+# 如果是明文身份证号则说明加密未生效
+
+
+###
+# 3.3 【亮点一扩展】保存新单后立即验证脱敏
+
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-001
+
+{
+  "reimbursementTitle": "脱敏测试专用-请不要删除",
+  "businessTripReason": "测试数据脱敏效果",
+  "reimburserId": "EMP001",
+  "reimburserNo": "1001",
+  "reimburserName": "脱敏测试员",
+  "reimCompanyId": "COMP01",
+  "reimCompanyNo": "C001",
+  "reimCompanyName": "字节跳动科技有限公司",
+  "subsidyTotal": 888.88,
+  "payeeIdCard": "420102198512125678",
+  "payeeBankAccount": "621483100098765432",
+  "tripList": [
+    {
+      "travelerId": "EMP001",
+      "travelerNo": "1001",
+      "travelerName": "脱敏测试员",
+      "departureCityId": "city027",
+      "departureCityName": "武汉",
+      "arriveCityId": "city010",
+      "arriveCityName": "北京",
+      "arriveCityLevel": "1",
+      "departureDate": "2025-11-01",
+      "arriveDate": "2025-11-03",
+      "tripDays": 3,
+      "tripDesc": "数据脱敏专用"
+    }
+  ]
+}
+
+> {%
+    if (response.body.code == 200) {
+        client.log(">>> 脱敏测试报销单ID: " + response.body.data.id);
+        client.log(">>> 请执行 GET /REIM_GetDetail?id=" + response.body.data.id + " 查看脱敏效果");
+    }
+%}
+
+
+###############################################################################
+#  第三章: 🌟 亮点三 — 分布式最终一致性 (RabbitMQ DLX + 本地消息表 + 定时补偿)
+#
+#  代码位置:
+#    - config/RabbitMQConfig.java           (交换机/队列/DLX定义)
+#    - mq/BpmMessageListener.java           (消费者 + 死信消费者)
+#    - job/BpmCompensationJob.java          (定时补偿任务, 每5分钟)
+#    - entity/FkMqMessage.java              (本地消息表实体)
+#
+#  验证目标:
+#    1. 提交报销单后，消息发送到 RabbitMQ
+#    2. BpmMessageListener 消费时抛出异常 (模拟网络超时)
+#    3. Spring-RabbitMQ 自动重试 3 次 (指数退避: 2s → 4s → 10s)
+#    4. 3 次重试耗尽后，消息进入死信队列 (DLX: reim.dlx.queue)
+#    5. DLX 消费者打印红色严重告警日志
+#    6. 本地消息表 (fk_mq_message) 记录了发送状态
+#    7. 定时补偿任务每5分钟扫描补偿
+#
+#  前置条件: 需要一个草稿状态的报销单
+###############################################################################
+
+###
+# 4.1 【亮点三前置】保存一个用于MQ测试的草稿报销单
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-001
+
+{
+  "reimbursementTitle": "MQ死信队列测试-请勿删除",
+  "businessTripReason": "测试分布式消息可靠性",
+  "reimburserId": "EMP002",
+  "reimburserNo": "1002",
+  "reimburserName": "MQ测试员",
+  "reimCompanyId": "COMP01",
+  "reimCompanyNo": "C001",
+  "reimCompanyName": "字节跳动科技有限公司",
+  "subsidyTotal": 1600.00,
+  "payeeIdCard": "420502199208089012",
+  "payeeBankAccount": "622700100045678901",
+  "tripList": [
+    {
+      "travelerId": "EMP002",
+      "travelerNo": "1002",
+      "travelerName": "MQ测试员",
+      "departureCityId": "city010",
+      "departureCityName": "北京",
+      "arriveCityId": "city021",
+      "arriveCityName": "上海",
+      "arriveCityLevel": "1",
+      "departureDate": "2025-11-10",
+      "arriveDate": "2025-11-15",
+      "tripDays": 6,
+      "tripDesc": "MQ可靠性测试"
+    }
+  ]
+}
+
+> {%
+    if (response.body.code == 200) {
+        client.global.set("mqReimId", response.body.data.id);
+        client.log(">>> MQ测试报销单ID: " + response.body.data.id);
+    }
+%}
+
+
+###
+# 4.2 【亮点三核心测试】提交报销单 — 触发MQ异步推送
+# ⚠️ 观察控制台日志! 时间线:
+#    T+0s:  日志 "【BPM消费者】接收到报销单提交消息..."
+#    T+0s:  日志 "【BPM消费者】调用BPM系统接口发生网络超时异常！(演示用途)"
+#    T+2s:  第1次重试 (initial-interval=2000)
+#    T+6s:  第2次重试 (multiplier=2, 间隔=4s)
+#    T+16s: 第3次重试 (max-interval=10000)
+#    T+16s: 日志 "【严重告警】向BPM推送报销单(ID: xxx)失败，重试3次已耗尽！"
+#
+# ⚠️ 注意: version 必须与查询结果一致 (新保存的单 version=0)
+POST {{fccApi}}/REIM_Submit
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{mqReimId}}",
+  "version": 0
+}
+
+
+###
+# 4.3 【亮点三验证A】查询本地消息表 (在 IDEA Database 窗口执行)
+#
+# SELECT * FROM fk_reim_db.fk_mq_message WHERE business_id = '{{mqReimId}}' ORDER BY creation_time DESC;
+#
+# 预期:
+#   - topic = 'reim.submit.topic'
+#   - status: 1=发送成功, 2=发送失败(等待补偿)
+#   - message_content 包含报销单ID
+
+
+###
+# 4.4 【亮点三验证B】在 RabbitMQ 管理界面查看死信队列
+# 浏览器打开: http://192.168.40.128:15672  (账号: itcast / 密码: 123456)
+# 导航: Queues → 找到 "reim.dlx.queue" → 查看 Ready messages
+# 预期: reim.dlx.queue 中有消息堆积 (Total > 0)
+
+
+###
+# 4.5 【亮点三验证C】检查补偿任务日志
+# 每5分钟执行一次，观察控制台:
+#   "开始执行BPM审批流推送补偿任务..."
+#   "补偿推送报销单 xxx 到 MQ"
+
+
+###############################################################################
+#  第四章: 🌟 亮点四 — 百万级数据防OOM异步导出 (EasyExcel + 自定义线程池)
+#
+#  代码位置:
+#    - controller/ExportController.java     (导出控制器)
+#    - service/AsyncExportService.java      (异步导出服务, @Async)
+#    - config/ThreadPoolConfig.java         (导出专用线程池)
+#    - vo/ExportTaskVO.java                 (任务状态VO)
+#    - vo/ReimExportVO.java                 (导出VO, EasyExcel注解)
+#    - entity/FkAsyncTask.java              (异步任务表实体)
+#
+#  验证目标:
+#    1. 提交导出任务后立即返回 taskId (不阻塞)
+#    2. 轮询进度接口能看到 progress 逐步增长
+#    3. 数据库 fk_async_task 表记录了任务状态
+#    4. 下载的 Excel 文件中身份证和银行卡是脱敏后的
+#    5. 系统不会 OOM (分页查询, 每页1000条, 流式写入)
+#
+#  步骤: 提交任务 → 轮询进度 → 下载文件
+###############################################################################
+
+###
+# 5.1 【亮点四 Step1】提交异步导出任务 — 立即返回 taskId (异步!)
+POST {{exportApi}}/async
+Content-Type: application/json
+
+{
+  "current": 1,
+  "size": 10
+}
+
+> {%
+    if (response.body.code == 200) {
+        client.global.set("exportTaskId", response.body.data.taskId);
+        client.log(">>> 导出任务已提交, taskId=" + response.body.data.taskId);
+    }
+%}
+
+
+###
+# 5.2 【亮点四 Step2】轮询任务进度 — 建议间隔2秒多次发送
+# 预期响应:
+#   处理中: {"code":200,"data":{"status":"PROCESSING","progress":45}}
+#   已完成: {"code":200,"data":{"status":"SUCCESS","progress":100,
+#            "downloadUrl":"/api/reim/export/download/xxx"}}
+#   失败:   {"code":200,"data":{"status":"FAILED","errorMsg":"..."}}
+GET {{exportApi}}/status/{{exportTaskId}}
+
+
+###
+# 5.3 【亮点四 Step3】下载生成的 Excel 文件 — 另存为 .xlsx 打开验证
+# 验证内容:
+#   - 列: 报销单号、报销标题、报销人、报销部门、出差事由、补助总金额
+#        收款人身份证号(脱敏)、收款人银行账号(脱敏)、创建时间、单据状态
+#   - 身份证显示如 "110105********1234"
+#   - 银行卡显示如 "6222****1234"
+GET {{exportApi}}/download/{{exportTaskId}}
+
+
+###
+# 5.4 【亮点四变体】通过主控制器接口提交导出 (同一逻辑, 不同入口)
+POST {{fccApi}}/REIM_ExportAsync
+Content-Type: application/json
+user-id: user-001
+
+{
+  "current": 1,
+  "size": 10
+}
+
+> {%
+    if (response.body.code == 200) {
+        client.global.set("exportTaskId2", response.body.data.taskId);
+        client.log(">>> 导出任务(主接口)已提交, taskId=" + response.body.data.taskId);
+    }
+%}
+
+
+###
+# 5.5 【亮点四变体】查询导出任务状态 (主接口入口)
+GET {{fccApi}}/REIM_ExportStatus?taskId={{exportTaskId2}}
+
+
+###
+# 5.6 【亮点四验证】数据库验证异步任务表
+# 在 IDEA Database 窗口执行:
+# SELECT id, task_name, task_type, status, progress, file_url
+# FROM fk_reim_db.fk_async_task ORDER BY creation_time DESC LIMIT 5;
+#
+# 预期: status=2 (成功), progress=100, file_url 有文件路径
+
+
+###
+# 5.7 【亮点四】带查询条件的导出
+POST {{exportApi}}/async
+Content-Type: application/json
+
+{
+  "current": 1,
+  "size": 10,
+  "reimNo": "REIM2025",
+  "reimTitle": "出差",
+  "companyId": "COMP01"
+}
+
+
+###############################################################################
+#  第五章: 亮点二 — 乐观锁 + 分布式锁并发控制机制
+#
+#  代码位置:
+#    - service/impl/ReimMainServiceImpl.java  (saveReimMain + submitReim)
+#    - entity/ReimMain.java                   (@Version 乐观锁字段)
+#
+#  验证目标:
+#    1. 乐观锁: 使用过期version更新 → "数据已被修改，请刷新后重试"
+#    2. 分布式锁: 同一报销单并发提交, 只有一个成功
+#    3. 版本号递增机制正常
+###############################################################################
+
+###
+# 6.1 【亮点二前置】先保存一个用于并发测试的报销单
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-002
+
+{
+  "reimbursementTitle": "乐观锁测试专用-请勿删除",
+  "businessTripReason": "测试乐观锁与分布式锁",
+  "reimburserId": "EMP003",
+  "reimburserNo": "1003",
+  "reimburserName": "并发测试员",
+  "reimCompanyId": "COMP01",
+  "reimCompanyNo": "C001",
+  "reimCompanyName": "字节跳动科技有限公司",
+  "subsidyTotal": 500.00,
+  "payeeIdCard": "420502199208089012",
+  "payeeBankAccount": "622700100045678901",
+  "tripList": [
+    {
+      "travelerId": "EMP003",
+      "travelerNo": "1003",
+      "travelerName": "并发测试员",
+      "departureCityId": "city027",
+      "departureCityName": "武汉",
+      "arriveCityId": "city0717",
+      "arriveCityName": "宜昌",
+      "arriveCityLevel": "3",
+      "departureDate": "2025-12-01",
+      "arriveDate": "2025-12-05",
+      "tripDays": 5,
+      "tripDesc": "并发测试行程"
+    }
+  ]
+}
+
+> {%
+    if (response.body.code == 200) {
+        client.global.set("optLockReimId", response.body.data.id);
+        client.log(">>> 乐观锁测试报销单ID: " + response.body.data.id);
+    }
+%}
+
+
+###
+# 6.2 【亮点二核心测试A】使用正确的版本号更新 — 成功
+# version=0 是正确的, 因为是新创建的
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-002
+
+{
+  "id": "{{optLockReimId}}",
+  "version": 0,
+  "reimbursementTitle": "乐观锁测试-第一次更新(携带正确版本号v0)",
+  "businessTripReason": "第一次更新携带version=0应该成功",
+  "reimburserId": "EMP003",
+  "reimburserNo": "1003",
+  "reimburserName": "并发测试员",
+  "reimCompanyId": "COMP01",
+  "reimCompanyNo": "C001",
+  "reimCompanyName": "字节跳动科技有限公司",
+  "subsidyTotal": 700.00,
+  "tripList": [
+    {
+      "travelerId": "EMP003",
+      "travelerNo": "1003",
+      "travelerName": "并发测试员",
+      "departureCityId": "city027",
+      "departureCityName": "武汉",
+      "arriveCityId": "city010",
+      "arriveCityName": "北京",
+      "arriveCityLevel": "1",
+      "departureDate": "2025-12-10",
+      "arriveDate": "2025-12-15",
+      "tripDays": 6,
+      "tripDesc": "正确版本号更新"
+    }
+  ]
+}
+
+
+###
+# 6.3 【亮点二核心测试B】使用过期的版本号更新 — 应被乐观锁拦截!
+# 此时 version 已经是 1 (上一步更新后递增), 再用 version=0 应失败
+# 预期: code != 200, message = "数据已被修改，请刷新后重试"
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+user-id: user-002
+
+{
+  "id": "{{optLockReimId}}",
+  "version": 0,
+  "reimbursementTitle": "乐观锁测试-第二次更新(使用过期版本号应失败)",
+  "businessTripReason": "这次更新携带过期的version=0应该被拦截",
+  "reimburserId": "EMP003",
+  "reimburserNo": "1003",
+  "reimburserName": "并发测试员",
+  "reimCompanyId": "COMP01",
+  "subsidyTotal": 999.99,
+  "tripList": [
+    {
+      "travelerId": "EMP003",
+      "travelerNo": "1003",
+      "travelerName": "并发测试员",
+      "departureCityId": "city010",
+      "departureCityName": "北京",
+      "arriveCityId": "city021",
+      "arriveCityName": "上海",
+      "arriveCityLevel": "1",
+      "departureDate": "2025-12-20",
+      "arriveDate": "2025-12-22",
+      "tripDays": 3,
+      "tripDesc": "过期版本号更新 — 应被乐观锁拦截!"
+    }
+  ]
+}
+
+
+###############################################################################
+#  第六章: 基础 CRUD 接口测试
+###############################################################################
+
+###
+# 7.1 分页查询 (全量)
+POST {{fccApi}}/REIM_QueryPageList
+Content-Type: application/json
+user-id: EMP001
+
+{
+  "current": 1,
+  "size": 10
+}
+
+
+###
+# 7.2 按报销标题模糊搜索
+POST {{fccApi}}/REIM_QueryPageList
+Content-Type: application/json
+user-id: EMP001
+
+{
+  "current": 1,
+  "size": 5,
+  "reimTitle": "杭州"
+}
+
+
+###
+# 7.3 按报销单号搜索
+POST {{fccApi}}/REIM_QueryPageList
+Content-Type: application/json
+user-id: EMP001
+
+{
+  "current": 1,
+  "size": 10,
+  "reimNo": "REIM2025"
+}
+
+
+###
+# 7.4 按公司ID筛选
+POST {{fccApi}}/REIM_QueryPageList
+Content-Type: application/json
+
+{
+  "current": 1,
+  "size": 10,
+  "companyId": "COMP01"
+}
+
+
+###
+# 7.5 查询预置测试数据详情 (reim001)
+GET {{fccApi}}/REIM_GetDetail?id=reim001
+user-id: user-001
+
+
+###
+# 7.6 更新报销单状态 (手动设置)
+POST {{fccApi}}/REIM_UpdateStatus
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{reimId}}",
+  "status": 1
+}
+
+
+###
+# 7.7 作废报销单 (仅"已完成"状态可作废)
+POST {{fccApi}}/REIM_Cancel
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{reimId}}"
+}
+
+
+###############################################################################
+#  第七章: 边界与异常场景测试
+###############################################################################
+
+###
+# 8.1 【异常】缺少所有必填字段 — 应返回参数校验错误 (code=400)
+POST {{fccApi}}/REIM_Save
+Content-Type: application/json
+
+{
+  "reimbursementTitle": "",
+  "businessTripReason": "",
+  "reimburserId": "",
+  "reimburserName": "",
+  "reimCompanyId": ""
+}
+
+
+###
+# 8.2 【异常】查询不存在的报销单
+GET {{fccApi}}/REIM_GetDetail?id=NONEXISTENT_ID_99999
+user-id: user-001
+
+
+###
+# 8.3 【异常】查询不存在的导出任务
+GET {{exportApi}}/status/non-existent-task-id
+
+
+###
+# 8.4 【异常】提交不存在的报销单 — 应返回 "报销单不存在"
+POST {{fccApi}}/REIM_Submit
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "NONEXISTENT_ID_00000",
+  "version": 0
+}
+
+
+###
+# 8.5 【异常】提交时缺少版本号 — 应返回参数错误
+POST {{fccApi}}/REIM_Submit
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{reimId}}"
+}
+
+
+###
+# 8.6 【边界】重复提交已完成的报销单 — 应被状态校验拦截
+POST {{fccApi}}/REIM_Submit
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{reimId}}",
+  "version": 1
+}
+
+
+###
+# 8.7 【边界】作废一个草稿状态的报销单 — 应被状态校验拦截
+POST {{fccApi}}/REIM_Cancel
+Content-Type: application/json
+user-id: user-001
+
+{
+  "id": "{{optLockReimId}}"
+}
+
+
+###
+# 8.8 【边界】下载不存在或未完成的导出任务
+GET {{exportApi}}/download/non-existent-task-id

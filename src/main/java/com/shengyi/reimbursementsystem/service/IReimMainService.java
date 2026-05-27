@@ -28,4 +28,17 @@ public interface IReimMainService extends IService<ReimMain> {
      * @param dto 包含报销单ID及乐观锁版本号
      */
     void submitReim(com.shengyi.reimbursementsystem.dto.ReimSubmitDTO dto);
+    
+    /**
+     * 更新报销单状态
+     * @param id 报销单ID
+     * @param status 新状态
+     */
+    void updateStatus(String id, Integer status);
+    
+    /**
+     * 作废报销单
+     * @param id 报销单ID
+     */
+    void cancelReim(String id);
 }

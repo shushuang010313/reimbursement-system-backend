@@ -1,6 +1,8 @@
 package com.shengyi.reimbursementsystem.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.shengyi.reimbursementsystem.annotation.DesensitizeType;
+import com.shengyi.reimbursementsystem.annotation.JsonEncrypt;
 import com.shengyi.reimbursementsystem.common.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -40,6 +42,12 @@ public class ReimMain extends BaseEntity {
     private BigDecimal phoneAllowance;
     
     private String remarks;
+
+    @JsonEncrypt(DesensitizeType.ID_CARD)
+    private String payeeIdCard;
+
+    @JsonEncrypt(DesensitizeType.BANK_CARD)
+    private String payeeBankAccount;
     
     @Version
     private Integer version;

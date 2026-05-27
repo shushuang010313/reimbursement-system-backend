@@ -80,6 +80,12 @@ public class ReimSaveDTO {
     @Schema(description = "备注信息")
     private String remarks;
 
+    @Schema(description = "收款人身份证号")
+    private String payeeIdCard;
+
+    @Schema(description = "收款人银行账号")
+    private String payeeBankAccount;
+
     @Schema(description = "补录行程列表")
     private List<ReimTripDTO> tripList;
 

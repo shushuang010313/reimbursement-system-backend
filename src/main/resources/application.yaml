@@ -36,6 +36,16 @@ spring:
     port: 5672
     username: itcast
     password: 123456
+    listener:
+      simple:
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2000
+          multiplier: 2
+          max-interval: 10000
+        # 重试耗尽后不重新入队，而是抛弃（触发DLX死信）
+        default-requeue-rejected: false
 
 # MyBatis-Plus 配置
 mybatis-plus:
