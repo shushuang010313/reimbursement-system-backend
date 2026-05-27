@@ -5,8 +5,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shengyi.reimbursementsystem.component.SubsidyCalcEngine;
 import com.shengyi.reimbursementsystem.dto.ReimCalendarDTO;
 import com.shengyi.reimbursementsystem.entity.ReimCalendar;
+import com.shengyi.reimbursementsystem.entity.ReimMain;
+import com.shengyi.reimbursementsystem.entity.ReimSubsidy;
 import com.shengyi.reimbursementsystem.entity.ReimTrip;
 import com.shengyi.reimbursementsystem.mapper.ReimCalendarMapper;
+import com.shengyi.reimbursementsystem.mapper.ReimMainMapper;
+import com.shengyi.reimbursementsystem.mapper.ReimSubsidyMapper;
 import com.shengyi.reimbursementsystem.mapper.ReimTripMapper;
 import com.shengyi.reimbursementsystem.service.IReimCalendarService;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
@@ -171,11 +176,11 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         }
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.shengyi.reimbursementsystem.mapper.ReimSubsidyMapper reimSubsidyMapper;
+    @Autowired
+    private ReimSubsidyMapper reimSubsidyMapper;
 
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.shengyi.reimbursementsystem.mapper.ReimMainMapper reimMainMapper;
+    @Autowired
+    private ReimMainMapper reimMainMapper;
 
     private void updateSubsidyAndMainAmount(String subsidyId) {
         LambdaQueryWrapper<ReimCalendar> queryWrapper = new LambdaQueryWrapper<>();
@@ -204,7 +209,7 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
             .setScale(2, RoundingMode.HALF_UP);
 
         // 更新补助子表
-        com.shengyi.reimbursementsystem.entity.ReimSubsidy subsidy = new com.shengyi.reimbursementsystem.entity.ReimSubsidy();
+        ReimSubsidy subsidy = new ReimSubsidy();
         subsidy.setId(subsidyId);
         subsidy.setMealSubsidy(totalMealAmount);
         subsidy.setTransportSubsidy(totalTransportAmount);
@@ -213,18 +218,18 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         reimSubsidyMapper.updateById(subsidy);
 
         // 重新汇总该报销单下的所有补助
-        LambdaQueryWrapper<com.shengyi.reimbursementsystem.entity.ReimSubsidy> subQuery = new LambdaQueryWrapper<>();
-        subQuery.eq(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getReimId, reimId)
-                .eq(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getDelFlag, 0);
-        List<com.shengyi.reimbursementsystem.entity.ReimSubsidy> allSubsidies = reimSubsidyMapper.selectList(subQuery);
+        LambdaQueryWrapper<ReimSubsidy> subQuery = new LambdaQueryWrapper<>();
+        subQuery.eq(ReimSubsidy::getReimId, reimId)
+                .eq(ReimSubsidy::getDelFlag, 0);
+        List<ReimSubsidy> allSubsidies = reimSubsidyMapper.selectList(subQuery);
 
-        BigDecimal mainMeal = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getMealSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
-        BigDecimal mainTransport = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getTransportSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
-        BigDecimal mainPhone = allSubsidies.stream().map(com.shengyi.reimbursementsystem.entity.ReimSubsidy::getPhoneSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainMeal = allSubsidies.stream().map(ReimSubsidy::getMealSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainTransport = allSubsidies.stream().map(ReimSubsidy::getTransportSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
+        BigDecimal mainPhone = allSubsidies.stream().map(ReimSubsidy::getPhoneSubsidy).reduce(BigDecimal.ZERO, (a, b) -> a.add(b != null ? b : BigDecimal.ZERO));
         BigDecimal mainTotal = mainMeal.add(mainTransport).add(mainPhone).setScale(2, RoundingMode.HALF_UP);
 
         // 更新主表
-        com.shengyi.reimbursementsystem.entity.ReimMain main = new com.shengyi.reimbursementsystem.entity.ReimMain();
+        ReimMain main = new ReimMain();
         main.setId(reimId);
         main.setMealAllowance(mainMeal);
         main.setTransportationAllowance(mainTransport);

@@ -4,6 +4,11 @@ import org.springframework.amqp.core.ExchangeBuilder;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 
 @Configuration
 public class RabbitMQConfig {
@@ -31,33 +36,33 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public org.springframework.amqp.core.Queue submitQueue() {
+    public Queue submitQueue() {
         // 配置该队列的死信交换机和死信路由键
-        return org.springframework.amqp.core.QueueBuilder.durable(REIM_SUBMIT_QUEUE)
+        return QueueBuilder.durable(REIM_SUBMIT_QUEUE)
                 .withArgument("x-dead-letter-exchange", REIM_DLX_EXCHANGE)
                 .withArgument("x-dead-letter-routing-key", REIM_DLX_ROUTING_KEY)
                 .build();
     }
 
     @Bean
-    public org.springframework.amqp.core.Binding submitBinding() {
+    public Binding submitBinding() {
         // 绑定 submitQueue 到 submitExchange，路由键为 "#"（接收所有消息）
-        return org.springframework.amqp.core.BindingBuilder.bind(submitQueue()).to(submitExchange()).with("#");
+        return BindingBuilder.bind(submitQueue()).to(submitExchange()).with("#");
     }
 
     // ================== 死信交换机与队列 ==================
     @Bean
-    public org.springframework.amqp.core.DirectExchange dlxExchange() {
-        return org.springframework.amqp.core.ExchangeBuilder.directExchange(REIM_DLX_EXCHANGE).durable(true).build();
+    public DirectExchange dlxExchange() {
+        return ExchangeBuilder.directExchange(REIM_DLX_EXCHANGE).durable(true).build();
     }
 
     @Bean
-    public org.springframework.amqp.core.Queue dlxQueue() {
-        return org.springframework.amqp.core.QueueBuilder.durable(REIM_DLX_QUEUE).build();
+    public Queue dlxQueue() {
+        return QueueBuilder.durable(REIM_DLX_QUEUE).build();
     }
 
     @Bean
-    public org.springframework.amqp.core.Binding dlxBinding() {
-        return org.springframework.amqp.core.BindingBuilder.bind(dlxQueue()).to(dlxExchange()).with(REIM_DLX_ROUTING_KEY);
+    public Binding dlxBinding() {
+        return BindingBuilder.bind(dlxQueue()).to(dlxExchange()).with(REIM_DLX_ROUTING_KEY);
     }
 }

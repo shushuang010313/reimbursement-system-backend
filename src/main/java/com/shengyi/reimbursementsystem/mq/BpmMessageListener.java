@@ -16,6 +16,7 @@ public class BpmMessageListener {
     /**
      * 正常消费提交报销单的消息
      * 监听队列：reim.submit.queue
+     * 【学习指引】MQ 消费者：异步接收“报销单已提交”事件，用于请求远端 BPM 系统
      *
      * @param reimId 报销单ID
      */
@@ -24,6 +25,7 @@ public class BpmMessageListener {
         log.info("【BPM消费者】接收到报销单提交消息，准备推送审批流，报销单ID: {}", reimId);
 
         // 为了演示 Highlight 3：分布式容错与重试机制，故意模拟网络调用异常
+        // 【学习指引】这里模拟了调用外部系统发生异常，抛出异常后 RabbitMQ 会根据配置进行重试
         log.warn("【BPM消费者】调用BPM系统接口发生网络超时异常！(演示用途)");
         throw new RuntimeException("调用BPM审批流网络超时！");
         
@@ -38,12 +40,14 @@ public class BpmMessageListener {
     /**
      * 死信队列消费者（人工干预兜底）
      * 监听队列：reim.dlx.queue
+     * 【学习指引】死信队列（DLQ）：当消息重试达到最大次数（如 3 次）依然失败时，消息将被路由到这里
      *
      * @param reimId 报销单ID
      */
     @RabbitListener(queues = RabbitMQConfig.REIM_DLX_QUEUE)
     public void handleDeadLetterMessage(String reimId) {
         // 当达到最大重试次数（3次）依然失败时，消息将被投递到此
+        // 【学习指引】作为最终兜底方案，在死信队列中通常会触发严重告警，并要求人工介入排查
         log.error("=========================================================");
         log.error("【严重告警】向BPM推送报销单(ID: {})失败，重试3次已耗尽！", reimId);
         log.error("【严重告警】该消息已进入死信队列(DLQ)，系统已触发钉钉/邮件告警，请管理员立即人工介入处理！");

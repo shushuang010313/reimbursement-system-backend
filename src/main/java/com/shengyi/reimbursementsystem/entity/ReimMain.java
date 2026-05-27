@@ -43,12 +43,15 @@ public class ReimMain extends BaseEntity {
     
     private String remarks;
 
+    // 【学习指引】数据脱敏：此字段在返回给前端（被 Jackson 序列化）时，会通过自定义序列化器进行身份证号打码。
     @JsonEncrypt(DesensitizeType.ID_CARD)
     private String payeeIdCard;
 
+    // 【学习指引】数据脱敏：同上，对银行卡号进行安全脱敏打码。
     @JsonEncrypt(DesensitizeType.BANK_CARD)
     private String payeeBankAccount;
     
+    // 【学习指引】乐观锁标记：配合 OptimisticLockerInnerInterceptor，更新时自动带上版本控制，防止并发脏写。
     @Version
     private Integer version;
     
@@ -59,9 +62,11 @@ public class ReimMain extends BaseEntity {
     private String updateUserId;
     private String updateUserName;
     
+    // 【学习指引】自动填充字段：通过 MetaObjectHandler，在发生 INSERT 或 UPDATE 操作时自动注入当前时间。
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
     
+    // 【学习指引】逻辑删除标记：调用 MyBatis-Plus 的查询或删除方法时，引擎会自动过滤 / 修改该字段（例如查询时自动追加 WHERE del_flag=0）。
     @TableLogic
     private Integer delFlag;
 }

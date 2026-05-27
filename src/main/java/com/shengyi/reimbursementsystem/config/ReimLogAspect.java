@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl;
 
 @Aspect
 @Component
@@ -26,9 +27,9 @@ public class ReimLogAspect {
     private final ReimLogMapper reimLogMapper;
     private final ObjectMapper objectMapper;
 
-    @Around("execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.submitReim(..)) || " +
-            "execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.updateStatus(..)) || " +
-            "execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.cancelReim(..))")
+    @Around("execution(* ReimMainServiceImpl.submitReim(..)) || " +
+            "execution(* ReimMainServiceImpl.updateStatus(..)) || " +
+            "execution(* ReimMainServiceImpl.cancelReim(..))")
     public Object logStatusChange(ProceedingJoinPoint pjp) throws Throwable {
         Object[] args = pjp.getArgs();
         String methodName = pjp.getSignature().getName();

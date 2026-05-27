@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/fccapi")
@@ -19,8 +20,8 @@ public class ReimTripController {
 
     @PostMapping("/REIM_SaveTrip")
     @Operation(summary = "保存补录行程")
-    public Result<java.util.Map<String, String>> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
-        java.util.Map<String, String> data = reimTripService.saveTrip(dto);
+    public Result<Map<String, String>> saveTrip(@Valid @RequestBody ReimTripDTO dto) {
+        Map<String, String> data = reimTripService.saveTrip(dto);
         return Result.success(data);
     }
 

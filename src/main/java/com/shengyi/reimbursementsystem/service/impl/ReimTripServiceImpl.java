@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -38,7 +40,7 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public java.util.Map<String, String> saveTrip(ReimTripDTO tripDTO) {
+    public Map<String, String> saveTrip(ReimTripDTO tripDTO) {
         validateTripTime(tripDTO);
 
         ReimTrip reimTrip = new ReimTrip();
@@ -56,7 +58,7 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
         }
 
         String subsidyId = getReimSubsidyService().generateSubsidy(reimTrip.getId(), reimTrip.getReimId());
-        java.util.Map<String, String> result = new java.util.HashMap<>();
+        Map<String, String> result = new HashMap<>();
         result.put("tripId", reimTrip.getId());
         result.put("subsidyId", subsidyId);
         return result;
