@@ -50,6 +50,8 @@ CREATE TABLE fk_reim_main (
                               transportation_allowance DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT '交通补助',
                               phone_allowance DECIMAL(18,2) NOT NULL DEFAULT 0.00 COMMENT '通讯补助',
                               remarks VARCHAR(2000) NULL DEFAULT NULL COMMENT '备注信息',
+                              payee_id_card VARCHAR(255) NULL DEFAULT NULL COMMENT '收款人身份证号（密文）',
+                              payee_bank_account VARCHAR(255) NULL DEFAULT NULL COMMENT '收款人银行账号（密文）',
                               version INT(11) NOT NULL DEFAULT 0 COMMENT '乐观锁版本号（用于并发控制）',
                               create_user_id VARCHAR(32) NULL DEFAULT NULL COMMENT '创建人ID',
                               create_user_no VARCHAR(20) NULL DEFAULT NULL COMMENT '创建人工号',
@@ -206,7 +208,7 @@ INSERT INTO fk_reim_main (
     reim_company_id, reim_company_no, reim_company_name,
     business_type_id, business_type_no, business_type_name,
     subsidy_total, meal_allowance, transportation_allowance, phone_allowance,
-    remarks, version, create_user_id, create_user_no, create_user_name,
+    remarks, payee_id_card, payee_bank_account, version, create_user_id, create_user_no, create_user_name,
     update_user_id, update_user_name
 ) VALUES
       (
@@ -217,6 +219,7 @@ INSERT INTO fk_reim_main (
           'biz001', 'B001', '市场调研',
           540.00, 300.00, 120.00, 120.00,
           '参加2025年5月21-23日北京产品研讨会，期间自行解决交通和用餐',
+          '110105199001011234', '622202100012345678',
           1, 'emp1001', '1001', '张三',
           'emp1001', '张三'
       ),
@@ -228,6 +231,7 @@ INSERT INTO fk_reim_main (
           'biz002', 'B002', '客户拜访',
           0.00, 0.00, 0.00, 0.00,
           '',
+          '420102198512125678', '621483100098765432',
           0, 'emp1002', '1002', '李四',
           'emp1002', '李四'
       ),
@@ -239,6 +243,7 @@ INSERT INTO fk_reim_main (
           'biz003', 'B003', '项目实施',
           390.00, 150.00, 120.00, 120.00,
           '项目验收延期，已取消本次出差',
+          '420502199208089012', '622700100045678901',
           2, 'emp1003', '1003', '王五',
           'emp1003', '王五'
       );
@@ -306,6 +311,44 @@ INSERT INTO fk_reim_calendar (
       ('cal005', 'reim003', 'subsidy003', '2025-05-18', '星期日', 'city0717', '宜昌', 1, 50.00, 50.00, 1, 40.00, 40.00, 1, 40.00, 40.00),
       ('cal006', 'reim003', 'subsidy003', '2025-05-19', '星期一', 'city0717', '宜昌', 1, 50.00, 50.00, 1, 40.00, 40.00, 1, 40.00, 40.00),
       ('cal007', 'reim003', 'subsidy003', '2025-05-20', '星期二', 'city0717', '宜昌', 1, 50.00, 50.00, 1, 40.00, 40.00, 1, 40.00, 40.00);
+
+
+-- ----------------------------
+-- Table structure for fk_async_task
+-- ----------------------------
+DROP TABLE IF EXISTS `fk_async_task`;
+CREATE TABLE `fk_async_task` (
+  `id` varchar(32) NOT NULL COMMENT '任务ID(UUID生成)',
+  `task_name` varchar(100) NOT NULL COMMENT '任务名称',
+  `task_type` varchar(50) NOT NULL COMMENT '任务类型(EXPORT等)',
+  `status` int(4) NOT NULL DEFAULT 0 COMMENT '任务状态(0排队中 1处理中 2成功 3失败)',
+  `progress` int(4) NOT NULL DEFAULT 0 COMMENT '执行进度百分比(0-100)',
+  `file_url` varchar(1000) DEFAULT NULL COMMENT '处理成功后生成的文件下载地址',
+  `error_msg` varchar(2000) DEFAULT NULL COMMENT '任务处理异常时的错误提示',
+  `operator_id` varchar(32) NOT NULL COMMENT '提交人ID',
+  `creation_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `completion_time` datetime DEFAULT NULL COMMENT '完成时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='6.1.8 异步任务中心表';
+
+-- ----------------------------
+-- Table structure for fk_mq_message
+-- ----------------------------
+DROP TABLE IF EXISTS `fk_mq_message`;
+CREATE TABLE `fk_mq_message` (
+  `id` varchar(32) NOT NULL COMMENT '主键ID',
+  `business_id` varchar(32) NOT NULL COMMENT '业务单据ID',
+  `topic` varchar(100) NOT NULL COMMENT 'MQ发送主题',
+  `message_content` text NOT NULL COMMENT 'JSON格式的消息内容',
+  `status` int(4) NOT NULL DEFAULT 0 COMMENT '发送状态(0待发送 1发送成功 2发送失败 3死信)',
+  `retry_count` int(4) NOT NULL DEFAULT 0 COMMENT '重试次数',
+  `max_retry` int(4) NOT NULL DEFAULT 3 COMMENT '最大重试次数',
+  `next_retry_time` datetime DEFAULT NULL COMMENT '下次重试时间',
+  `creation_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='6.1.7 MQ可靠消息投递表';
 
 -- 3.5 插入费用分摊表数据
 INSERT INTO fk_reim_split (

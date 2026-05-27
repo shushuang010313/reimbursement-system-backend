@@ -9,10 +9,12 @@ import com.shengyi.reimbursementsystem.dto.ReimSaveDTO;
 import com.shengyi.reimbursementsystem.dto.ReimSplitDTO;
 import com.shengyi.reimbursementsystem.dto.ReimSubmitDTO;
 import com.shengyi.reimbursementsystem.dto.ReimTripDTO;
+import com.shengyi.reimbursementsystem.entity.FkMqMessage;
 import com.shengyi.reimbursementsystem.entity.ReimMain;
 import com.shengyi.reimbursementsystem.entity.ReimSplit;
 import com.shengyi.reimbursementsystem.entity.ReimTrip;
 import com.shengyi.reimbursementsystem.exception.BusinessException;
+import com.shengyi.reimbursementsystem.mapper.FkMqMessageMapper;
 import com.shengyi.reimbursementsystem.mapper.ReimMainMapper;
 import com.shengyi.reimbursementsystem.service.IReimMainService;
 import com.shengyi.reimbursementsystem.service.IReimSplitService;
@@ -44,6 +46,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
     private final RedissonClient redissonClient;
     private final RabbitTemplate rabbitTemplate;
     private final ReimMainMapper reimMainMapper;
+    private final FkMqMessageMapper fkMqMessageMapper;
 
     @Override
     public IPage<ReimMainVO> queryPageList(ReimPageQueryDTO dto) {
@@ -182,12 +185,31 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             if (!updated) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被修改，提交失败");
             }
+            
+            // 记录到本地消息表，在同一个事务内完成
+            String mqMessageId = java.util.UUID.randomUUID().toString().replace("-", "");
+            FkMqMessage mqMessage = new FkMqMessage();
+            mqMessage.setId(mqMessageId);
+            mqMessage.setBusinessId(reimId);
+            mqMessage.setTopic("reim.submit.topic");
+            mqMessage.setMessageContent(reimId); // 简单起见只存ID，如果是复杂对象则转为JSON
+            mqMessage.setStatus(0); // 0待发送
+            fkMqMessageMapper.insert(mqMessage);
 
             // 发送 MQ 消息进行异步处理
             try {
                 rabbitTemplate.convertAndSend("reim.submit.topic", "", reimId);
+                // 成功则更新状态
+                FkMqMessage successMsg = new FkMqMessage();
+                successMsg.setId(mqMessageId);
+                successMsg.setStatus(1); // 1发送成功
+                fkMqMessageMapper.updateById(successMsg);
             } catch (Exception e) {
-                // 发送失败时由定时任务补偿处理
+                // 发送失败时由定时任务补偿处理，记录失败状态
+                FkMqMessage failMsg = new FkMqMessage();
+                failMsg.setId(mqMessageId);
+                failMsg.setStatus(2); // 2发送失败
+                fkMqMessageMapper.updateById(failMsg);
             }
             
         } catch (InterruptedException e) {
@@ -198,5 +220,31 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
                 lock.unlock();
             }
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateStatus(String id, Integer status) {
+        ReimMain updateMain = new ReimMain();
+        updateMain.setId(id);
+        updateMain.setReimStatus(status);
+        this.updateById(updateMain);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelReim(String id) {
+        ReimMain main = this.getById(id);
+        if (main == null) {
+            throw new BusinessException(ErrorCodeEnum.REIM_001);
+        }
+        // 只有已完成（1）状态可以作废
+        if (main.getReimStatus() != 1) {
+            throw new BusinessException(ErrorCodeEnum.REIM_002.getCode(), "只有已完成的报销单可以作废");
+        }
+        ReimMain updateMain = new ReimMain();
+        updateMain.setId(id);
+        updateMain.setReimStatus(2); // 2-已作废
+        this.updateById(updateMain);
     }
 }

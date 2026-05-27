@@ -26,12 +26,26 @@ public class ReimLogAspect {
     private final ReimLogMapper reimLogMapper;
     private final ObjectMapper objectMapper;
 
-    @Around("execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.submitReim(..))")
+    @Around("execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.submitReim(..)) || " +
+            "execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.updateStatus(..)) || " +
+            "execution(* com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl.cancelReim(..))")
     public Object logStatusChange(ProceedingJoinPoint pjp) throws Throwable {
         Object[] args = pjp.getArgs();
+        String methodName = pjp.getSignature().getName();
         String reimId = null;
-        if (args != null && args.length > 0 && args[0] instanceof ReimSubmitDTO) {
-            reimId = ((ReimSubmitDTO) args[0]).getId();
+        String actionName = "状态变更";
+        
+        if ("submitReim".equals(methodName)) {
+            if (args != null && args.length > 0 && args[0] instanceof ReimSubmitDTO) {
+                reimId = ((ReimSubmitDTO) args[0]).getId();
+            }
+            actionName = "报销单提交";
+        } else if ("updateStatus".equals(methodName) || "cancelReim".equals(methodName)) {
+            if (args != null && args.length > 0 && args[0] instanceof String) {
+                reimId = (String) args[0];
+            }
+            if ("updateStatus".equals(methodName)) actionName = "报销单状态更新(审批回调)";
+            if ("cancelReim".equals(methodName)) actionName = "报销单作废";
         }
 
         ReimMain oldMain = null;
@@ -48,18 +62,14 @@ public class ReimLogAspect {
                 if (newMain != null && !newMain.getReimStatus().equals(oldMain.getReimStatus())) {
                     ReimLog reimLog = new ReimLog();
                     reimLog.setReimId(reimId);
-                    reimLog.setAction("报销单提交");
+                    reimLog.setAction(actionName);
                     reimLog.setOldStatus(oldMain.getReimStatus());
                     reimLog.setNewStatus(newMain.getReimStatus());
                     
                     Map<String, Object> details = new HashMap<>();
                     details.put("reimNo", newMain.getReimNo());
-                    // 敏感字段打码
-                    String name = newMain.getReimburserName();
-                    if (name != null && name.length() > 1) {
-                        name = name.substring(0, 1) + "**";
-                    }
-                    details.put("reimburserNameMasked", name);
+                    // 移除硬编码脱敏，保留真实数据，由后续 @JsonEncrypt 功能统一在序列化层进行脱敏处理
+                    details.put("reimburserName", newMain.getReimburserName());
                     details.put("subsidyTotal", newMain.getSubsidyTotal());
                     
                     reimLog.setDetails(objectMapper.writeValueAsString(details));
