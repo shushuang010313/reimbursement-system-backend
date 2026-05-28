@@ -34,6 +34,12 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
         this.subsidyCalcEngine = subsidyCalcEngine;
     }
 
+    /**
+     * 生成补助信息
+     * @param tripId 行程ID
+     * @param reimId 报销单ID
+     * @return 补助信息ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String generateSubsidy(String tripId, String reimId) {
@@ -73,6 +79,11 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
         return subsidy.getId();
     }
 
+    /**
+     * 根据报销单ID查询补助信息
+     * @param reimId 报销单ID
+     * @return 补助信息列表
+     */
     @Override
     public List<ReimSubsidy> getSubsidyByReimId(String reimId) {
         return lambdaQuery()
@@ -80,6 +91,10 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
             .list();
     }
 
+    /**
+     * 更新补助金额
+     * @param subsidyId 补助信息ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateSubsidyAmount(String subsidyId) {

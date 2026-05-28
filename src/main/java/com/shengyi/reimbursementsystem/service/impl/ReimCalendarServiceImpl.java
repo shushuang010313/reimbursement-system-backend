@@ -15,6 +15,7 @@ import com.shengyi.reimbursementsystem.mapper.ReimTripMapper;
 import com.shengyi.reimbursementsystem.service.IReimCalendarService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,12 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         this.subsidyCalcEngine = subsidyCalcEngine;
     }
 
+    /**
+     * 生成补助日历
+     * @param tripId 补录行程ID
+     * @param reimId 补录行程ID
+     * @param subsidyId 补助ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void generateCalendar(String tripId, String reimId, String subsidyId) {
@@ -75,6 +82,14 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         log.info("批量生成补助日历成功: tripId={}, count={}", tripId, calendarList.size());
     }
 
+    /**
+     * 创建补助日历记录
+     * @param date 日期
+     * @param trip 补录行程
+     * @param reimId 补录行程ID
+     * @param subsidyId 补助ID
+     * @return 补助日历记录
+     */
     private ReimCalendar createCalendarRecord(LocalDate date, ReimTrip trip, String reimId, String subsidyId) {
         ReimCalendar calendar = new ReimCalendar();
         calendar.setReimId(reimId);
@@ -108,6 +123,11 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
         return calendar;
     }
 
+    /**
+     * 获取补助日历
+     * @param subsidyId 补助ID
+     * @return 补助日历列表
+     */
     @Override
     public List<ReimCalendar> getCalendarBySubsidyId(String subsidyId) {
         return lambdaQuery()
@@ -116,6 +136,10 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
             .list();
     }
 
+    /**
+     * 更新补助日历状态
+     * @param dtoList 补助日历状态DTO列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateCalendarStatus(List<ReimCalendarDTO> dtoList) {
@@ -177,10 +201,10 @@ public class ReimCalendarServiceImpl extends ServiceImpl<ReimCalendarMapper, Rei
     }
 
     @Autowired
-    private ReimSubsidyMapper reimSubsidyMapper;
+    private com.shengyi.reimbursementsystem.mapper.ReimSubsidyMapper reimSubsidyMapper;
 
     @Autowired
-    private ReimMainMapper reimMainMapper;
+    private com.shengyi.reimbursementsystem.mapper.ReimMainMapper reimMainMapper;
 
     private void updateSubsidyAndMainAmount(String subsidyId) {
         LambdaQueryWrapper<ReimCalendar> queryWrapper = new LambdaQueryWrapper<>();

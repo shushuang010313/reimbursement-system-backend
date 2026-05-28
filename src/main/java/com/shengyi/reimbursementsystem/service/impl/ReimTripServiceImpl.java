@@ -38,6 +38,11 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
         return applicationContext.getBean(IReimSubsidyService.class);
     }
 
+    /**
+     * 保存行程
+     * @param tripDTO 行程数据
+     * @return 包含行程ID和补助ID的Map
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, String> saveTrip(ReimTripDTO tripDTO) {
@@ -64,6 +69,10 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
         return result;
     }
 
+    /**
+     * 删除行程
+     * @param tripId 行程ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteTrip(String tripId) {
@@ -80,6 +89,10 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
         log.info("删除行程成功: tripId={}", tripId);
     }
 
+    /**
+     * 验证行程时间是否有效
+     * @param tripDTO 行程数据
+     */
     private void validateTripTime(ReimTripDTO tripDTO) {
         if (tripDTO.getDepartureDate().isAfter(tripDTO.getArriveDate())) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);

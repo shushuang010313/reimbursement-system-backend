@@ -1,15 +1,16 @@
 package com.shengyi.reimbursementsystem.component;
 
 import com.shengyi.reimbursementsystem.common.ErrorCodeEnum;
+import com.shengyi.reimbursementsystem.component.strategy.SubsidyCalcStrategy;
+import com.shengyi.reimbursementsystem.component.strategy.SubsidyCalcStrategyFactory;
 import com.shengyi.reimbursementsystem.exception.BusinessException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -19,11 +20,23 @@ import java.util.concurrent.TimeUnit;
 public class SubsidyCalcEngine {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final SubsidyCalcStrategyFactory strategyFactory;
+    
     private static final String CITY_LIST_KEY = "fk:reim:city:list";
     private static final String CITY_CACHE_PREFIX = "fk:reim:city:";
     private static final long CACHE_EXPIRE_HOURS = 24;
 
-    public String matchCityLevel(String cityId) {
+    @PostConstruct
+    public void init() {
+        strategyFactory.init();
+    }
+
+    /**
+     * 匹配城市等级。
+     * @param cityId 城市ID
+     * @return 城市等级
+     */
+       public String matchCityLevel(String cityId) {
         if (cityId == null || cityId.isEmpty()) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }
@@ -49,6 +62,11 @@ public class SubsidyCalcEngine {
         return cityLevel;
     }
 
+    /**
+     * 从城市信息中提取城市等级。
+     * @param cityInfo 城市信息字符串
+     * @return 城市等级
+     */
     private String extractCityLevel(String cityInfo) {
         if (cityInfo.contains("\"csfllx\":1")) {
             return "1";
@@ -58,55 +76,33 @@ public class SubsidyCalcEngine {
         return "3";
     }
 
+    /**
+     * 计算补贴标准。
+     * @param cityLevel 城市等级
+     * @param days 补贴天数
+     * @return 计算结果
+     */
     public Map<String, BigDecimal> calculateStandardAmount(String cityLevel, int days) {
         if (cityLevel == null || days <= 0) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }
 
-        BigDecimal mealStandard;
-        BigDecimal transportStandard = new BigDecimal("40");
-        BigDecimal phoneStandard = new BigDecimal("40");
-
-        switch (cityLevel) {
-            case "1":
-                mealStandard = new BigDecimal("100");
-                break;
-            case "2":
-                mealStandard = new BigDecimal("80");
-                break;
-            case "3":
-                mealStandard = new BigDecimal("50");
-                break;
-            default:
-                mealStandard = new BigDecimal("50");
-        }
-
-        Map<String, BigDecimal> result = new HashMap<>();
-        result.put("meal", mealStandard.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP));
-        result.put("transport", transportStandard.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP));
-        result.put("phone", phoneStandard.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP));
-        
-        return result;
+        SubsidyCalcStrategy strategy = strategyFactory.getStrategy(cityLevel);
+        return strategy.calculateAllStandards(days);
     }
 
+    /**
+     * 计算每日补贴标准。
+     * @param cityLevel 城市等级
+     * @param subsidyType 补贴类型
+     * @return 计算结果
+     */
     public BigDecimal calculateDayStandardAmount(String cityLevel, String subsidyType) {
         if (cityLevel == null || subsidyType == null) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }
 
-        switch (subsidyType) {
-            case "meal":
-                switch (cityLevel) {
-                    case "1": return new BigDecimal("100");
-                    case "2": return new BigDecimal("80");
-                    case "3": return new BigDecimal("50");
-                    default: return new BigDecimal("50");
-                }
-            case "transport":
-            case "phone":
-                return new BigDecimal("40");
-            default:
-                return BigDecimal.ZERO;
-        }
+        SubsidyCalcStrategy strategy = strategyFactory.getStrategy(cityLevel);
+        return strategy.calculateDayStandard(subsidyType);
     }
 }
