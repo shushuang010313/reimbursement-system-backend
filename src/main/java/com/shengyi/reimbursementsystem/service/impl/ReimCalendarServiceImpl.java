@@ -9,6 +9,8 @@ import com.shengyi.reimbursementsystem.entity.ReimMain;
 import com.shengyi.reimbursementsystem.entity.ReimSubsidy;
 import com.shengyi.reimbursementsystem.entity.ReimTrip;
 import com.shengyi.reimbursementsystem.mapper.ReimCalendarMapper;
+import com.shengyi.reimbursementsystem.mapper.ReimMainMapper;
+import com.shengyi.reimbursementsystem.mapper.ReimSubsidyMapper;
 import com.shengyi.reimbursementsystem.mapper.ReimTripMapper;
 import com.shengyi.reimbursementsystem.service.IReimCalendarService;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service

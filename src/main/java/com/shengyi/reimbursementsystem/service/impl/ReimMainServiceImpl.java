@@ -34,7 +34,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 
 @Service
 @RequiredArgsConstructor
@@ -64,32 +67,36 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String saveReimMain(ReimSaveDTO dto) {
+        // 【学习指引】1. 创建实体类并将 DTO 数据拷贝过去
         ReimMain main = new ReimMain();
         BeanUtils.copyProperties(dto, main);
 
+        // 【学习指引】2. 判断是新增还是更新操作：如果前端没有传 ID，说明是新增
         boolean isNew = !StringUtils.hasText(dto.getId());
         if (isNew) {
-            // 生成报销单号：REIM + 年月日 + 序列号
+            // 【学习指引】2.1 新增逻辑：生成规则的报销单号：REIM + 年月日 + 4位序列号
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String redisKey = "reim:seq:" + dateStr;
+            // 【学习指引】利用 Redis 的 incr 操作保证单号的原子自增，避免并发产生重复单号
             Long seq = stringRedisTemplate.opsForValue().increment(redisKey);
             if (seq != null) {
                 String seqStr = String.format("%04d", seq);
                 main.setReimNo("REIM" + dateStr + seqStr);
             }
+            // 【学习指引】新建的报销单默认为“草稿”状态
             main.setReimStatus(0); // 0-草稿
             this.save(main);
         } else {
-            // 检查乐观锁版本号
+            // 【学习指引】2.2 更新逻辑：先校验旧数据状态
             ReimMain oldMain = this.getById(dto.getId());
             if (oldMain == null) {
-                throw new BusinessException(ErrorCodeEnum.REIM_001);
+                throw new BusinessException(ErrorCodeEnum.REIM_001); // 单据不存在
             }
-            // 非草稿状态不可修改
+            // 【学习指引】状态机校验：非草稿状态的报销单不允许被修改
             if (oldMain.getReimStatus() != 0) {
-                throw new BusinessException(ErrorCodeEnum.REIM_002);
+                throw new BusinessException(ErrorCodeEnum.REIM_002); // 状态不合法
             }
-            // 检查前端是否传入了乐观锁版本号
+            // 【学习指引】乐观锁校验1：更新操作必须带有前端传入的版本号
             if (dto.getVersion() == null) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "更新失败：未传入版本号");
             }
@@ -97,7 +104,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             // 将前端传入的版本号赋予当前实体
             main.setVersion(dto.getVersion());
             
-            // 执行 updateById 时，MyBatis-Plus 的 OptimisticLockerInnerInterceptor 会自动拦截
+            // 【学习指引】乐观锁校验2：执行 updateById 时，MyBatis-Plus 的 OptimisticLockerInnerInterceptor 会自动拦截
             // 并在 SQL 末尾追加: WHERE id = ? AND version = ? 并且自动 SET version = version + 1
             // 如果在此期间有其他人修改了数据，version 发生了改变，那么受影响的行数 updated 将会返回 0 (false)
             boolean updated = this.updateById(main);
@@ -108,36 +115,38 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被其他人修改，请刷新后重试");
             }
             
-            // 逻辑删除旧的分摊明细和行程明细
-            reimSplitService.update(new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ReimSplit>().eq("reim_id", dto.getId()).set("del_flag", 1));
-            reimTripService.update(new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ReimTrip>().eq("reim_id", dto.getId()).set("del_flag", 1));
+            // 【学习指引】2.3 清理旧明细：在更新主单时，简单粗暴地将关联的明细全部逻辑删除，后续再重新插入新明细（即全删全插策略）
+            reimSplitService.update(new UpdateWrapper<ReimSplit>().eq("reim_id", dto.getId()).set("del_flag", 1));
+            reimTripService.update(new UpdateWrapper<ReimTrip>().eq("reim_id", dto.getId()).set("del_flag", 1));
         }
 
         String reimId = main.getId();
 
-        // 批量保存行程明细
+        // 【学习指引】3. 级联保存明细数据：批量保存行程明细
         if (dto.getTripList() != null && !dto.getTripList().isEmpty()) {
             List<ReimTrip> tripList = new ArrayList<>();
             for (ReimTripDTO tripDTO : dto.getTripList()) {
                 ReimTrip trip = new ReimTrip();
                 BeanUtils.copyProperties(tripDTO, trip);
-                trip.setReimId(reimId);
+                trip.setReimId(reimId); // 绑定主单ID
                 tripList.add(trip);
             }
-            reimTripService.saveBatch(tripList);
+            reimTripService.saveBatch(tripList); // 批量插入提高性能
         }
 
-        // 批量保存分摊明细
+        // 【学习指引】4. 级联保存明细数据：批量保存分摊明细
         if (dto.getSplitList() != null && !dto.getSplitList().isEmpty()) {
             List<ReimSplit> splitList = new ArrayList<>();
             for (ReimSplitDTO splitDTO : dto.getSplitList()) {
                 ReimSplit split = new ReimSplit();
                 BeanUtils.copyProperties(splitDTO, split);
-                split.setReimId(reimId);
+                split.setReimId(reimId); // 绑定主单ID
                 splitList.add(split);
             }
-            reimSplitService.saveBatch(splitList);
+            reimSplitService.saveBatch(splitList); // 批量插入提高性能
         }
+        
+        // 【学习指引】5. 返回最终的主单ID
         return reimId;
     }
 
@@ -145,49 +154,55 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
     @Transactional(rollbackFor = Exception.class)
     public void submitReim(ReimSubmitDTO dto) {
         String reimId = dto.getId();
+        // 【学习指引】1. 构建分布式锁的 Key，粒度精确到具体的报销单 ID
         String lockKey = "fk:reim:lock:submit:" + reimId;
+        // 【学习指引】通过 Redisson 获取可重入锁，防止同一单据在集群环境下的并发提交
         RLock lock = redissonClient.getLock(lockKey);
         boolean isLocked = false;
         try {
+            // 【学习指引】尝试加锁，0秒等待（获取不到立刻返回失败），锁超时时间 10 秒
             isLocked = lock.tryLock(0, 10, TimeUnit.SECONDS);
             if (!isLocked) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "请勿频繁重复提交");
             }
 
+            // 【学习指引】2. 业务校验：获取最新主单数据并进行合法性拦截
             ReimMain main = this.getById(reimId);
             if (main == null) {
                 throw new BusinessException(ErrorCodeEnum.REIM_001);
             }
             
-            // 校验乐观锁版本号是否一致
+            // 【学习指引】3. 乐观锁校验：比对前端传来的版本号与数据库中的是否一致，避免脏写
             if (!main.getVersion().equals(dto.getVersion())) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被修改，请刷新后重试");
             }
             
-            // 非草稿状态不能提交
+            // 【学习指引】状态机拦截：非草稿状态（0）的单子不允许进行提交操作
             if (main.getReimStatus() != 0) {
                 throw new BusinessException(ErrorCodeEnum.REIM_002);
             }
 
-            // 校验合法性（必须有行程明细，且补助总计不能为空）
-            long tripCount = reimTripService.count(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<ReimTrip>().eq("reim_id", reimId));
+            // 【学习指引】完整性拦截：必须包含行程明细且补助总额已计算
+            long tripCount = reimTripService.count(new QueryWrapper<ReimTrip>().eq("reim_id", reimId));
             if (tripCount == 0 || main.getSubsidyTotal() == null) {
                 throw new BusinessException(ErrorCodeEnum.REIM_005);
             }
 
-            // 更新状态为已完成
+            // 【学习指引】4. 更新自身状态：组装更新实体，将状态流转为“已完成(待推送BPM)”
             ReimMain updateMain = new ReimMain();
             updateMain.setId(reimId);
             updateMain.setVersion(dto.getVersion());
             updateMain.setReimStatus(1); // 1-已完成
             
+            // 执行更新，MyBatis-Plus 的乐观锁插件会再次保障更新的原子性
             boolean updated = this.updateById(updateMain);
             if (!updated) {
                 throw new BusinessException(ErrorCodeEnum.PARAM_ERROR.getCode(), "数据已被修改，提交失败");
             }
             
-            // 记录到本地消息表，在同一个事务内完成
-            String mqMessageId = java.util.UUID.randomUUID().toString().replace("-", "");
+            // 【学习指引】5. 采用“本地消息表”模式保障分布式事务的最终一致性
+            // 第一步：在当前数据库事务中，向本地消息表插入一条待发送的 MQ 消息记录
+            String mqMessageId = UUID.randomUUID().toString().replace("-", "");
             FkMqMessage mqMessage = new FkMqMessage();
             mqMessage.setId(mqMessageId);
             mqMessage.setBusinessId(reimId);
@@ -196,16 +211,17 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             mqMessage.setStatus(0); // 0待发送
             fkMqMessageMapper.insert(mqMessage);
 
-            // 发送 MQ 消息进行异步处理
+            // 【学习指引】6. 发送 MQ 消息进行异步解耦处理（通知 BPM 审批流）
             try {
                 rabbitTemplate.convertAndSend("reim.submit.topic", "", reimId);
-                // 成功则更新状态
+                // 发送成功后，更新本地消息表状态为“1-发送成功”
                 FkMqMessage successMsg = new FkMqMessage();
                 successMsg.setId(mqMessageId);
                 successMsg.setStatus(1); // 1发送成功
                 fkMqMessageMapper.updateById(successMsg);
             } catch (Exception e) {
-                // 发送失败时由定时任务补偿处理，记录失败状态
+                // 如果 MQ 宕机或网络异常导致发送失败，由于我们在本地事务中已经记录了消息状态，
+                // 此时只需更新状态为“2-发送失败”，后续会由定时任务(补偿Job)扫描本地消息表并重试
                 FkMqMessage failMsg = new FkMqMessage();
                 failMsg.setId(mqMessageId);
                 failMsg.setStatus(2); // 2发送失败
@@ -216,6 +232,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
             Thread.currentThread().interrupt();
             throw new BusinessException(ErrorCodeEnum.SYSTEM_ERROR);
         } finally {
+            // 【学习指引】7. 安全释放分布式锁（必须确保是当前线程持有的锁）
             if (isLocked && lock.isHeldByCurrentThread()) {
                 lock.unlock();
             }

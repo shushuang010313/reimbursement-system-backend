@@ -25,6 +25,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import com.shengyi.reimbursementsystem.common.UserContext;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -40,7 +43,7 @@ public class AsyncExportService {
     @Async("exportThreadPool")
     public void executeAsyncExport(String taskId, ReimPageQueryDTO queryDTO, String userId) {
         // 在异步线程中恢复用户上下文，确保数据权限拦截器能正常工作
-        com.shengyi.reimbursementsystem.common.UserContext.setUserId(userId);
+        UserContext.setUserId(userId);
         
         // 1. 同时在 Redis 和 MySQL 持久化任务
         String redisKey = REDIS_TASK_PREFIX + taskId;
@@ -160,7 +163,7 @@ public class AsyncExportService {
                 // 千万别忘记finish，否则文件可能不完整
                 excelWriter.finish();
             }
-            com.shengyi.reimbursementsystem.common.UserContext.clear();
+            UserContext.clear();
         }
     }
 
@@ -209,12 +212,14 @@ public class AsyncExportService {
         return bankCard.substring(0, 4) + "****" + bankCard.substring(bankCard.length() - 4);
     }
     
-    public java.util.Map<String, Object> getExportStatus(String taskId) {
+    public Map<String, Object> getExportStatus(String taskId) {
+        // 【学习指引】由于异步任务通过子线程持续在更新进度到数据库和 Redis，这里只需查数据库(或Redis)就能获取实时进展。
         FkAsyncTask dbTask = fkAsyncTaskMapper.selectById(taskId);
         if (dbTask == null) {
             return null;
         }
         
+        // 【学习指引】将数据库中的 Integer 状态码转译为前端友好的字符串标识
         String statusStr = "SUBMITTED";
         if (dbTask.getStatus() != null) {
             switch (dbTask.getStatus()) {
@@ -225,14 +230,19 @@ public class AsyncExportService {
             }
         }
         
-        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        // 【学习指引】组装返回报文
+        Map<String, Object> result = new HashMap<>();
         result.put("status", statusStr);
-        result.put("progress", dbTask.getProgress());
+        result.put("progress", dbTask.getProgress()); // 任务进度：0~100
         
+        // 【学习指引】最关键的一步：当状态判定为成功（2）时，向前端下发文件下载的 URL！
+        // 前端拿到 downloadUrl 后，就可以跳出轮询循环，并通过 window.location.href 等方式触发浏览器下载。
         if (dbTask.getStatus() != null && dbTask.getStatus() == 2) {
-            // 模拟OSS临时下载链接
-            result.put("downloadUrl", "/api/reim/export/download/" + taskId);
-        } else if (dbTask.getStatus() != null && dbTask.getStatus() == 3) {
+            // 模拟OSS临时下载链接，返回统一的 fccapi 下载接口
+            result.put("downloadUrl", "/fccapi/REIM_ExportDownload?taskId=" + taskId);
+        } 
+        // 【学习指引】如果有报错，则将底层的 errorMsg 吐给前端做错误气泡提示
+        else if (dbTask.getStatus() != null && dbTask.getStatus() == 3) {
             result.put("errorMsg", dbTask.getErrorMsg());
         }
         return result;
