@@ -1,6 +1,8 @@
 package com.shengyi.reimbursementsystem.mq;
 
 import com.shengyi.reimbursementsystem.config.RabbitMQConfig;
+import com.shengyi.reimbursementsystem.component.DingTalkNotifier;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -11,7 +13,10 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class BpmMessageListener {
+
+    private final DingTalkNotifier dingtalkNotifier;
 
     /**
      * 正常消费提交报销单的消息
@@ -23,9 +28,10 @@ public class BpmMessageListener {
     @RabbitListener(queues = RabbitMQConfig.REIM_SUBMIT_QUEUE)
     public void handleSubmitMessage(String reimId) {
         log.info("【BPM消费者】接收到报销单提交消息，准备推送审批流，报销单ID: {}", reimId);
+        dingtalkNotifier.send("接收到报销单提交消息，准备推送审批流，报销单ID: " + reimId);
 
         // 为了演示 Highlight 3：分布式容错与重试机制，故意模拟网络调用异常
-        // 【学习指引】这里模拟了调用外部系统发生异常，抛出异常后 RabbitMQ 会根据配置进行重试
+        // 【学习指引置】这里模拟了调用外部系统发生异常，抛出异常后 RabbitMQ 会根据配进行重试
         log.warn("【BPM消费者】调用BPM系统接口发生网络超时异常！(演示用途)");
         throw new RuntimeException("调用BPM审批流网络超时！");
         
@@ -54,5 +60,6 @@ public class BpmMessageListener {
         log.error("=========================================================");
         
         // 实际业务中这里可以调用告警接口（钉钉机器人、发送邮件等），并将失败记录持久化到告警表
+        dingtalkNotifier.send("【严重告警】报销单(ID: " + reimId + ") 推送BPM失败，重试3次已耗尽，请立即人工介入！");
     }
 }

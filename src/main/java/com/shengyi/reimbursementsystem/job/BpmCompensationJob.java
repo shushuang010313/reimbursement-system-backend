@@ -1,6 +1,7 @@
 package com.shengyi.reimbursementsystem.job;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.shengyi.reimbursementsystem.component.DingTalkNotifier;
 import com.shengyi.reimbursementsystem.entity.ReimMain;
 import com.shengyi.reimbursementsystem.service.IReimMainService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 public class BpmCompensationJob {
 
     private final IReimMainService reimMainService;
+    private final DingTalkNotifier dingtalkNotifier;
     private final RabbitTemplate rabbitTemplate;
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -33,6 +35,7 @@ public class BpmCompensationJob {
     @Scheduled(cron = "0 */5 * * * ?")
     public void compensateBpmPush() {
         log.info("开始执行BPM审批流推送补偿任务...");
+        dingtalkNotifier.send("开始执行BPM审批流推送补偿任务...");
         
         // 【学习指引】1. 锁定“异常”时间窗口：为了避开正常处理中的数据，只扫描 5 分钟前更新的数据
         LocalDateTime fiveMinsAgo = LocalDateTime.now().minusMinutes(5);
@@ -61,23 +64,27 @@ public class BpmCompensationJob {
             
             if (retryCount >= 3) {
                 log.error("报警：报销单 {} 推送BPM超3次失败，请人工介入处理！", reimId);
+                dingtalkNotifier.send("报警：报销单 " + reimId + " 推送BPM超3次失败，请人工介入处理！");
                 continue;
             }
             
             try {
                 // 【学习指引】4. 重新推送消息到 MQ
                 log.info("补偿推送报销单 {} 到 MQ", reimId);
+                dingtalkNotifier.send("补偿推送报销单 " + reimId + " 到 MQ");
                 rabbitTemplate.convertAndSend("reim.submit.topic", "", reimId);
                 
                 // 【学习指引】推送成功后记录标志到 Redis（可以设置过期时间，这里设为30天）
                 stringRedisTemplate.opsForValue().set(pushedKey, "1", 30, TimeUnit.DAYS);
             } catch (Exception e) {
                 log.error("补偿推送报销单 {} 失败", reimId, e);
+                dingtalkNotifier.send("补偿推送报销单 " + reimId + " 失败");
                 // 【学习指引】推送失败则累加重试次数
                 stringRedisTemplate.opsForValue().increment(retryKey);
             }
         }
         
         log.info("BPM审批流推送补偿任务执行结束。");
+        dingtalkNotifier.send("BPM审批流推送补偿任务执行结束。");
     }
 }

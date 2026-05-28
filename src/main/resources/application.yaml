@@ -74,3 +74,7 @@ logging:
   level:
     com.shengyi.reimbursement: debug
     org.springframework.web: info
+
+# 钉钉通知配置
+dingtalk:
+  webhook: "https://oapi.dingtalk.com/robot/send?access_token=b690703275f94142cdb96a0d5117c73c2c8c8cab0ea58a435e8af728b03ca3be"

@@ -1,0 +1,46 @@
+### 1. 保存报销单并获取单据ID
+# 提示：运行此请求后，IDEA 会自动将返回的报销单 ID 保存到全局变量 reimId 中
+POST http://localhost:8080/api/fccapi/REIM_Save
+Content-Type: application/json
+
+{
+  "reimbursementTitle": "测试钉钉BPM全流程告警",
+  "businessTripReason": "拜访关键客户，测试消息流转",
+  "reimburserId": "user_001",
+  "reimburserName": "张三",
+  "reimCompanyId": "comp_100",
+  "reimCompanyName": "演示总公司",
+  "subsidyTotal": 1000.00,
+  "remarks": "这是一张用于测试 BPM 钉钉告警推送的报销单",
+  "tripList": [
+    {
+      "travelerId": "user_001",
+      "travelerName": "张三",
+      "departureCityId": "CITY01",
+      "departureCityName": "北京",
+      "arriveCityId": "CITY02",
+      "arriveCityName": "上海",
+      "departureDate": "2026-05-28",
+      "arriveDate": "2026-05-30",
+      "tripDays": 3
+    }
+  ]
+}
+
+> {%
+    if (response.body && response.body.data && response.body.data.id) {
+        client.global.set("reimId", response.body.data.id);
+        client.log("已成功获取报销单ID: " + client.global.get("reimId"));
+    }
+%}
+
+
+### 2. 提交报销单 (触发 BPM 消息推送到钉钉)
+# 提示：此请求会自动使用上方步骤 1 中获取到的 reimId。新建的单据 version 默认为 0。
+POST http://localhost:8080/api/fccapi/REIM_Submit
+Content-Type: application/json
+
+{
+  "id": "{{reimId}}",
+  "version": 0
+}
