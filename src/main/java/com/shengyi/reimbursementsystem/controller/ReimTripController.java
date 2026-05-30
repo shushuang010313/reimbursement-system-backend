@@ -44,4 +44,10 @@ public class ReimTripController {
         reimTripService.deleteTrip(tripId);
         return Result.success();
     }
+
+    @GetMapping("/REIM_ListTrips")
+    @Operation(summary = "查询行程列表")
+    public Result<java.util.List<com.shengyi.reimbursementsystem.entity.ReimTrip>> listTrips(@RequestParam("reimId") String reimId) {
+        return Result.success(reimTripService.lambdaQuery().eq(com.shengyi.reimbursementsystem.entity.ReimTrip::getReimId, reimId).list());
+    }
 }

@@ -35,4 +35,10 @@ public class ReimSplitController {
         reimSplitService.calculateSplitRatio(reimId, splitList);
         return Result.success(splitList);
     }
+
+    @GetMapping("/REIM_ListSplits")
+    @Operation(summary = "查询分摊列表")
+    public Result<List<com.shengyi.reimbursementsystem.entity.ReimSplit>> listSplits(@RequestParam("reimId") String reimId) {
+        return Result.success(reimSplitService.lambdaQuery().eq(com.shengyi.reimbursementsystem.entity.ReimSplit::getReimId, reimId).list());
+    }
 }

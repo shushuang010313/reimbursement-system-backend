@@ -36,8 +36,8 @@ public class BpmMessageListener {
         // 【答辩重点】失败自动指数退避重试机制
         // 如果这里抛出异常（网络断连/超时），Spring AMQP 会根据配置文件进行重试。
         // 配置了诸如 multiplier=2, maxAttempts=3 的参数，实现指数级退避（比如隔1秒、2秒、4秒再试），避免发生雪崩压垮外部系统。
-        log.warn("【BPM消费者】调用BPM系统接口发生网络超时异常！(演示用途)");
-        throw new RuntimeException("调用BPM审批流网络超时！");
+        // log.warn("【BPM消费者】调用BPM系统接口发生网络超时异常！(演示用途)");
+        // throw new RuntimeException("调用BPM审批流网络超时！");
         
         // 实际业务代码应类似于：
         // boolean success = bpmClient.submit(reimId);
