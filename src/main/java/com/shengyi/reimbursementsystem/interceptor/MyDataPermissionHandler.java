@@ -42,7 +42,7 @@ public class MyDataPermissionHandler implements DataPermissionHandler {
 
         OrExpression orExpr = new OrExpression(dataPermissionExpr, createUserIdExpr);
         Parenthesis parenthesis = new Parenthesis();
-        parenthesis.setExpression(orExpr);
+        parenthesis.add(orExpr);
 
         // 如果原 SQL 没有 WHERE 条件，直接返回新建的过滤条件
         if (where == null) {
