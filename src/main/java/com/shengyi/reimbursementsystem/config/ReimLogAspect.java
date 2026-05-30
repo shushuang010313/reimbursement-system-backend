@@ -23,6 +23,11 @@ import com.shengyi.reimbursementsystem.service.impl.ReimMainServiceImpl;
 @RequiredArgsConstructor
 public class ReimLogAspect {
 
+    // 【答辩重点】为什么要用 AOP 做异动日志？
+    // 如果评委问：为什么不在业务代码里直接写 insert 日志？
+    // 答：为了实现“业务逻辑”与“系统日志”的解耦。如果我们把记日志的逻辑写死在 Service 里，会导致代码非常臃肿且难以维护。
+    // 使用 Spring AOP (@Aspect + @Around)，我们可以在不修改原有主流程代码的情况下，透明地切入方法执行前后，获取老状态和新状态进行对比入库。
+
     private final IReimMainService reimMainService;
     private final ReimLogMapper reimLogMapper;
     private final ObjectMapper objectMapper;
@@ -54,11 +59,14 @@ public class ReimLogAspect {
             oldMain = reimMainService.getById(reimId);
         }
 
-        // 执行目标方法
+        // 执行目标方法 (业务侧真正执行提交/作废的地方)
         Object result = pjp.proceed();
 
         if (reimId != null && oldMain != null) {
             try {
+                // 【答辩重点】如何记录“状态的变动”？
+                // 答：利用 Around 环绕通知的特性，在 proceed() 之前查一次数据库拿到老状态 oldMain，
+                // 在 proceed() 之后再查一次拿到新状态 newMain。如果状态发生不一致，说明流转成功，才构造 ReimLog 实体进行落库。
                 ReimMain newMain = reimMainService.getById(reimId);
                 if (newMain != null && !newMain.getReimStatus().equals(oldMain.getReimStatus())) {
                     ReimLog reimLog = new ReimLog();

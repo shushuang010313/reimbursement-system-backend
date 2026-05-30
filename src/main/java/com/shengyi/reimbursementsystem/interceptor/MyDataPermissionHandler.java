@@ -3,8 +3,10 @@ package com.shengyi.reimbursementsystem.interceptor;
 import com.baomidou.mybatisplus.extension.plugins.handler.DataPermissionHandler;
 import com.shengyi.reimbursementsystem.common.UserContext;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.schema.Column;
 
@@ -33,12 +35,21 @@ public class MyDataPermissionHandler implements DataPermissionHandler {
         dataPermissionExpr.setLeftExpression(new Column("reimburser_id"));
         dataPermissionExpr.setRightExpression(new StringValue(userId));
 
+        // 构建 create_user_id = '当前用户ID'
+        EqualsTo createUserIdExpr = new EqualsTo();
+        createUserIdExpr.setLeftExpression(new Column("create_user_id"));
+        createUserIdExpr.setRightExpression(new StringValue(userId));
+
+        OrExpression orExpr = new OrExpression(dataPermissionExpr, createUserIdExpr);
+        Parenthesis parenthesis = new Parenthesis();
+        parenthesis.setExpression(orExpr);
+
         // 如果原 SQL 没有 WHERE 条件，直接返回新建的过滤条件
         if (where == null) {
-            return dataPermissionExpr;
+            return parenthesis;
         }
 
         // 否则将原条件与数据隔离条件进行 AND 拼接
-        return new AndExpression(where, dataPermissionExpr);
+        return new AndExpression(where, parenthesis);
     }
 }

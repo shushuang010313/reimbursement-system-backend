@@ -39,6 +39,9 @@ import java.util.concurrent.TimeUnit;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> implements IReimMainService {
@@ -222,6 +225,7 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
                 successMsg.setStatus(1); // 1发送成功
                 fkMqMessageMapper.updateById(successMsg);
             } catch (Exception e) {
+                log.error("【主单提交】推送 MQ 消息失败，已记录本地消息表状态为 2，等待定时任务补偿。错误原因: {}", e.getMessage(), e);
                 // 如果 MQ 宕机或网络异常导致发送失败，由于我们在本地事务中已经记录了消息状态，
                 // 此时只需更新状态为“2-发送失败”，后续会由定时任务(补偿Job)扫描本地消息表并重试
                 FkMqMessage failMsg = new FkMqMessage();
