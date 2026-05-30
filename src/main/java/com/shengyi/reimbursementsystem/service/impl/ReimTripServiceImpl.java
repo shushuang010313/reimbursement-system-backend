@@ -51,13 +51,14 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
         ReimTrip reimTrip = new ReimTrip();
         BeanUtils.copyProperties(tripDTO, reimTrip);
 
+        reimTrip.setArriveCityLevel(subsidyCalcEngine.matchCityLevel(tripDTO.getArriveCityId()));
+        int tripDays = (int) ChronoUnit.DAYS.between(tripDTO.getDepartureDate(), tripDTO.getArriveDate()) + 1;
+        reimTrip.setTripDays(tripDays);
+
         if (tripDTO.getId() != null && !tripDTO.getId().isEmpty()) {
             updateById(reimTrip);
             log.info("更新行程成功: tripId={}", tripDTO.getId());
         } else {
-            reimTrip.setArriveCityLevel(subsidyCalcEngine.matchCityLevel(tripDTO.getArriveCityId()));
-            int tripDays = (int) ChronoUnit.DAYS.between(tripDTO.getDepartureDate(), tripDTO.getArriveDate()) + 1;
-            reimTrip.setTripDays(tripDays);
             save(reimTrip);
             log.info("保存行程成功: tripId={}", reimTrip.getId());
         }
