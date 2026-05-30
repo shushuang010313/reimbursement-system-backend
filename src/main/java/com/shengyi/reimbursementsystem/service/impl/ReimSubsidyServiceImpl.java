@@ -48,7 +48,16 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
             return null;
         }
 
-        ReimSubsidy subsidy = new ReimSubsidy();
+        ReimSubsidy subsidy = lambdaQuery()
+            .eq(ReimSubsidy::getTripId, tripId)
+            .one();
+
+        boolean isNew = false;
+        if (subsidy == null) {
+            subsidy = new ReimSubsidy();
+            isNew = true;
+        }
+
         subsidy.setReimId(reimId);
         subsidy.setTripId(tripId);
         subsidy.setTravelerId(trip.getTravelerId());
@@ -72,10 +81,15 @@ public class ReimSubsidyServiceImpl extends ServiceImpl<ReimSubsidyMapper, ReimS
         subsidy.setApplyAmount(applyAmount);
         subsidy.setSubsidyAmount(applyAmount);
 
-        save(subsidy);
-        log.info("生成补助信息成功: subsidyId={}", subsidy.getId());
-
-        reimCalendarService.generateCalendar(tripId, reimId, subsidy.getId());
+        if (isNew) {
+            save(subsidy);
+            log.info("生成补助信息成功: subsidyId={}", subsidy.getId());
+            reimCalendarService.generateCalendar(tripId, reimId, subsidy.getId());
+        } else {
+            updateById(subsidy);
+            log.info("更新补助信息成功: subsidyId={}", subsidy.getId());
+        }
+        
         return subsidy.getId();
     }
 
