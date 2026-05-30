@@ -58,12 +58,12 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
     public IPage<ReimMainVO> queryPageList(ReimPageQueryDTO dto) {
         Page<ReimMainVO> page = new Page<>(dto.getCurrent(), dto.getSize());
         ReimMainVO req = new ReimMainVO();
-        BeanUtils.copyProperties(dto, req);
         // 将 DTO 字段映射到 VO 字段，用于 XML 查询
+        req.setReimNo(dto.getReimNo());
         req.setReimbursementTitle(dto.getReimTitle());
+        req.setBusinessTripReason(dto.getBusinessTripReason());
         req.setReimCompanyId(dto.getCompanyId());
         req.setReimDepartmentId(dto.getDepartmentId());
-
         req.setReimburserId(dto.getReimburserId());
         req.setBusinessTypeId(dto.getBusinessTypeId());
         return reimMainMapper.queryPageList(page, req);
