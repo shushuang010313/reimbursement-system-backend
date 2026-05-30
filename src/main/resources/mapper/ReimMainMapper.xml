@@ -50,6 +50,12 @@
         <if test="req.reimDepartmentId != null and req.reimDepartmentId != ''">
             AND reim_department_id = #{req.reimDepartmentId}
         </if>
+        <if test="req.reimburserId != null and req.reimburserId != ''">
+            AND reimburser_id = #{req.reimburserId}
+        </if>
+        <if test="req.businessTypeId != null and req.businessTypeId != ''">
+            AND business_type_id = #{req.businessTypeId}
+        </if>
         ORDER BY creation_time DESC
     </select>
 

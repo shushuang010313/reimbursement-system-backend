@@ -60,7 +60,9 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
         req.setReimbursementTitle(dto.getReimTitle());
         req.setReimCompanyId(dto.getCompanyId());
         req.setReimDepartmentId(dto.getDepartmentId());
-        
+
+        req.setReimburserId(dto.getReimburserId());
+        req.setBusinessTypeId(dto.getBusinessTypeId());
         return reimMainMapper.queryPageList(page, req);
     }
 
