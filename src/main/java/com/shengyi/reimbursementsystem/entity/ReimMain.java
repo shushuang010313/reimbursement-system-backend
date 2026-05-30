@@ -55,10 +55,12 @@ public class ReimMain extends BaseEntity {
     @Version
     private Integer version;
     
+    @TableField(fill = FieldFill.INSERT)
     private String createUserId;
     private String createUserNo;
     private String createUserName;
     
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private String updateUserId;
     private String updateUserName;
     
