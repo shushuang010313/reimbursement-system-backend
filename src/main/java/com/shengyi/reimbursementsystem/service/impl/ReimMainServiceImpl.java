@@ -127,13 +127,29 @@ public class ReimMainServiceImpl extends ServiceImpl<ReimMainMapper, ReimMain> i
 
         String reimId = main.getId();
 
-        // 【学习指引】3. 级联保存明细数据：批量保存行程明细
+        // 【学习指引】3. 级联保存明细数据：先校验再批量保存行程明细
         if (dto.getTripList() != null && !dto.getTripList().isEmpty()) {
-            List<ReimTrip> tripList = new ArrayList<>();
             for (ReimTripDTO tripDTO : dto.getTripList()) {
+                tripDTO.setReimId(reimId);
+                reimTripService.validateTripTime(tripDTO);
+            }
+            // 校验同一批次内是否存在行程时间重叠
+            List<ReimTripDTO> tripDTOList = dto.getTripList();
+            for (int i = 0; i < tripDTOList.size(); i++) {
+                for (int j = i + 1; j < tripDTOList.size(); j++) {
+                    ReimTripDTO a = tripDTOList.get(i);
+                    ReimTripDTO b = tripDTOList.get(j);
+                    if (a.getTravelerId().equals(b.getTravelerId())
+                        && !a.getDepartureDate().isAfter(b.getArriveDate())
+                        && !b.getDepartureDate().isAfter(a.getArriveDate())) {
+                        throw new BusinessException(ErrorCodeEnum.REIM_003);
+                    }
+                }
+            }
+            List<ReimTrip> tripList = new ArrayList<>();
+            for (ReimTripDTO tripDTO : tripDTOList) {
                 ReimTrip trip = new ReimTrip();
                 BeanUtils.copyProperties(tripDTO, trip);
-                trip.setReimId(reimId); // 绑定主单ID
                 tripList.add(trip);
             }
             reimTripService.saveBatch(tripList); // 批量插入提高性能

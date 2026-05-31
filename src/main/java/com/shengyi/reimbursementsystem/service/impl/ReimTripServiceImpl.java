@@ -94,7 +94,7 @@ public class ReimTripServiceImpl extends ServiceImpl<ReimTripMapper, ReimTrip> i
      * 验证行程时间是否有效
      * @param tripDTO 行程数据
      */
-    private void validateTripTime(ReimTripDTO tripDTO) {
+    public void validateTripTime(ReimTripDTO tripDTO) {
         if (tripDTO.getDepartureDate().isAfter(tripDTO.getArriveDate())) {
             throw new BusinessException(ErrorCodeEnum.PARAM_ERROR);
         }

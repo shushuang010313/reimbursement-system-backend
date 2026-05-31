@@ -19,4 +19,10 @@ public interface IReimTripService extends IService<ReimTrip> {
      * @param tripId 行程ID
      */
     void deleteTrip(String tripId);
+
+    /**
+     * 验证行程时间是否有效（冲突则抛 BusinessException）
+     * @param tripDTO 行程数据
+     */
+    void validateTripTime(ReimTripDTO tripDTO);
 }
