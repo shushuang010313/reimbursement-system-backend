@@ -90,6 +90,12 @@ public class AsyncExportService {
                 if (StringUtils.hasText(queryDTO.getDepartmentId())) {
                     queryWrapper.eq("reim_department_id", queryDTO.getDepartmentId());
                 }
+                if (StringUtils.hasText(queryDTO.getReimburserId())) {
+                    queryWrapper.eq("reimburser_id", queryDTO.getReimburserId());
+                }
+                if (StringUtils.hasText(queryDTO.getBusinessTypeId())) {
+                    queryWrapper.eq("business_type_id", queryDTO.getBusinessTypeId());
+                }
             }
             
             // 先查总数
