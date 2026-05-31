@@ -153,6 +153,11 @@ public class ReimMainController {
     @Operation(summary = "发起百万级报表异步导出")
     public Result<Map<String, String>> submitExportTask(@RequestBody(required = false) ReimPageQueryDTO queryDTO) {
         String taskId = UUID.randomUUID().toString().replace("-", "");
+        
+        // 【时序优化】在主线程中提前插入任务记录，确保前端轮询时能立即查到
+        // 避免异步任务还在队列中等待时，前端轮询查不到任务导致"任务不存在或已过期"
+        asyncExportService.initTaskRecord(taskId, UserContext.getUserId());
+        
         // 触发异步执行，需要把当前主线程的 userId 传给异步线程
         asyncExportService.executeAsyncExport(taskId, queryDTO, UserContext.getUserId());
         

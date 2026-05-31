@@ -40,12 +40,8 @@ public class AsyncExportService {
 
     private static final String REDIS_TASK_PREFIX = "reim:export:task:";
 
-    @Async("exportThreadPool")
-    public void executeAsyncExport(String taskId, ReimPageQueryDTO queryDTO, String userId) {
-        // 在异步线程中恢复用户上下文，确保数据权限拦截器能正常工作
-        UserContext.setUserId(userId);
-        
-        // 1. 同时在 Redis 和 MySQL 持久化任务
+    public void initTaskRecord(String taskId, String userId) {
+        // 在主线程中提前初始化任务记录，确保前端轮询时能立即查到
         String redisKey = REDIS_TASK_PREFIX + taskId;
         ExportTaskVO taskVO = new ExportTaskVO().setTaskId(taskId).setStatus("SUBMITTED").setProgress(0);
         redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
@@ -54,10 +50,34 @@ public class AsyncExportService {
         dbTask.setId(taskId);
         dbTask.setTaskName("报销明细导出");
         dbTask.setTaskType("EXPORT");
-        dbTask.setStatus(1); // 1-处理中
+        dbTask.setStatus(0); // 0-已提交
         dbTask.setProgress(0);
-        dbTask.setOperatorId("system");
+        dbTask.setOperatorId(userId);
         fkAsyncTaskMapper.insert(dbTask);
+    }
+
+    @Async("exportThreadPool")
+    public void executeAsyncExport(String taskId, ReimPageQueryDTO queryDTO, String userId) {
+        // 在异步线程中恢复用户上下文，确保数据权限拦截器能正常工作
+        UserContext.setUserId(userId);
+        
+        // 更新任务状态为处理中
+        String redisKey = REDIS_TASK_PREFIX + taskId;
+        ExportTaskVO taskVO = (ExportTaskVO) redisTemplate.opsForValue().get(redisKey);
+        if (taskVO != null) {
+            taskVO.setStatus("PROCESSING");
+            redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+        }
+        
+        FkAsyncTask dbTask = fkAsyncTaskMapper.selectById(taskId);
+        if (dbTask == null) {
+            log.error("【异步导出】任务 {} 数据库记录不存在，无法执行导出", taskId);
+            UserContext.clear();
+            return;
+        }
+        
+        dbTask.setStatus(1); // 1-处理中
+        fkAsyncTaskMapper.updateById(dbTask);
 
         String tempDir = System.getProperty("java.io.tmpdir");
         String fileName = "Reimbursement_Export_" + taskId + ".xlsx";
@@ -102,8 +122,10 @@ public class AsyncExportService {
             long total = reimMainMapper.selectCount(queryWrapper);
             
             if (total == 0) {
-                taskVO.setStatus("SUCCESS").setProgress(100).setMessage("暂无数据导出").setFileName(fileName);
-                redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+                if (taskVO != null) {
+                    taskVO.setStatus("SUCCESS").setProgress(100).setMessage("暂无数据导出").setFileName(fileName);
+                    redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+                }
                 
                 dbTask.setStatus(2); // 2-成功
                 dbTask.setProgress(100);
@@ -133,8 +155,10 @@ public class AsyncExportService {
                 
                 // 更新进度到 Redis 和 数据库
                 int progress = (int) (exportedCount * 100 / total);
-                taskVO.setProgress(progress).setMessage(String.format("已导出 %d / %d 条", exportedCount, total));
-                redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+                if (taskVO != null) {
+                    taskVO.setProgress(progress).setMessage(String.format("已导出 %d / %d 条", exportedCount, total));
+                    redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+                }
                 
                 dbTask.setProgress(progress);
                 fkAsyncTaskMapper.updateById(dbTask);
@@ -144,8 +168,10 @@ public class AsyncExportService {
             }
 
             // 完成任务
-            taskVO.setStatus("SUCCESS").setProgress(100).setMessage("导出完成").setFileName(fileName);
-            redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+            if (taskVO != null) {
+                taskVO.setStatus("SUCCESS").setProgress(100).setMessage("导出完成").setFileName(fileName);
+                redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+            }
             
             dbTask.setStatus(2); // 2-成功
             dbTask.setProgress(100);
@@ -157,8 +183,10 @@ public class AsyncExportService {
 
         } catch (Exception e) {
             log.error("【异步导出】任务 {} 执行失败：", taskId, e);
-            taskVO.setStatus("FAILED").setMessage("导出异常：" + e.getMessage());
-            redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+            if (taskVO != null) {
+                taskVO.setStatus("FAILED").setMessage("导出异常：" + e.getMessage());
+                redisTemplate.opsForValue().set(redisKey, taskVO, 1, TimeUnit.HOURS);
+            }
             
             dbTask.setStatus(3); // 3-失败
             dbTask.setErrorMsg(e.getMessage() != null && e.getMessage().length() > 1900 ? e.getMessage().substring(0, 1900) : e.getMessage());
